@@ -1,99 +1,97 @@
 import React, { useState } from "react";
-import { FiPlus, FiBox } from "react-icons/fi";
+import { NavLink } from "react-router-dom";
+import { FiPlus, FiBox, FiInfo } from "react-icons/fi";
+import { tofa, tolatin, normDecimal, findType, variantLabel } from "../utils/format";
 
-const tofa = (n) => Number(n).toLocaleString("fa-IR");
-const tolatin = (text) =>
-  String(text)
-    .replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d))
-    .replace(/[^0-9]/g, "");
+const emptyForm = (typeId = "") => ({
+  typeId,
+  name: "",
+  attrs: {},
+  count: "",
+  shade: "white",
+});
 
-const AddProduct = ({
-  products = [],
-  setProducts,
-  setTransactions,
-  currentUser = "مدیر",
-}) => {
-  const [form, setForm] = useState({
-    type: "",
-    material: "",
-    width: "",
-    cover: "",
-    color: "",
-    length: "",
-    count: "",
-    shade: "white",
-  });
-
+const AddProduct = ({ products = [], productTypes = [], actions }) => {
+  const [form, setForm] = useState(emptyForm());
   const [submitted, setSubmitted] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const type = form.typeId ? findType(productTypes, Number(form.typeId)) : null;
+  const typeFields = type?.fields || [];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
   };
 
-  const handleSubmit = (e) => {
+  const handleTypeChange = (e) => {
+    setForm({ ...emptyForm(e.target.value), shade: form.shade });
+  };
+
+  const handleAttr = (field, value) => {
+    const clean = field.kind === "number" ? normDecimal(value) : value;
+    setForm({ ...form, attrs: { ...form.attrs, [field.key]: clean } });
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (
-      !form.type.trim() ||
-      !form.material.trim() ||
-      !form.color.trim() ||
-      !form.count.trim()
-    ) {
+    if (!type) {
+      alert("لطفاً نوع محصول را انتخاب کنید!");
+      return;
+    }
+    const missing =
+      !form.name.trim() ||
+      !form.count.trim() ||
+      typeFields.some(
+        (f) => f.required && !String(form.attrs[f.key] ?? "").trim()
+      );
+    if (missing) {
       alert("لطفاً تمام فیلدهای الزامی را پر کنید!");
       return;
     }
 
-    const initialCount = Number(tolatin(form.count)) || 0;
-    const newId = Math.max(...products.map((p) => p.id), 0) + 1;
-
-    const newProduct = {
-      id: newId,
-      type: form.type,
-      material: form.material,
-      width: Number(tolatin(form.width)) || 0,
-      cover: form.cover,
-      color: form.color,
-      length: form.length,
-      count: initialCount,
-      shade: form.shade,
-    };
-
-    setProducts([...products, newProduct]);
-
-    // لاگ تراکنش ثبت اولیه
-    if (setTransactions && initialCount > 0) {
-      setTransactions((prev) => [
-        {
-          id: Date.now(),
-          timestamp: new Date().toLocaleString("fa-IR"),
-          productId: newId,
-          productName: newProduct.type,
-          productColor: newProduct.color,
-          oldCount: 0,
-          newCount: initialCount,
-          change: initialCount,
-          reason: "ثبت اولیه",
-          buyerName: null,
-          user: currentUser,
-        },
-        ...prev,
-      ]);
-    }
-
-    setForm({
-      type: "",
-      material: "",
-      width: "",
-      cover: "",
-      color: "",
-      length: "",
-      count: "",
-      shade: "white",
+    const attrs = {};
+    typeFields.forEach((f) => {
+      const v = form.attrs[f.key];
+      if (v === undefined || v === "") attrs[f.key] = "";
+      else attrs[f.key] = f.kind === "number" ? Number(v) || 0 : v;
     });
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 3000);
+
+    setBusy(true);
+    try {
+      await actions.addProduct({
+        typeId: type.id,
+        name: form.name.trim(),
+        attrs,
+        count: Number(tolatin(form.count)) || 0,
+        shade: form.shade,
+      });
+      setForm({ ...emptyForm(String(type.id)), shade: "white" });
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 3000);
+    } catch (err) {
+      alert(err.message || "خطایی رخ داد");
+    } finally {
+      setBusy(false);
+    }
   };
+
+  if (productTypes.length === 0) {
+    return (
+      <div className="addproductpage">
+        <div className="addproducttitle">
+          <FiBox />
+          <h2>افزودن محصول جدید</h2>
+        </div>
+        <div className="settingsnote">
+          هنوز هیچ نوع محصولی تعریف نشده است. اول از بخش{" "}
+          <NavLink to="/settings">تنظیمات</NavLink> یک نوع محصول بسازید و متغیرهایش
+          را تعریف کنید.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="addproductpage">
@@ -102,76 +100,133 @@ const AddProduct = ({
         <h2>افزودن محصول جدید</h2>
       </div>
 
-      {submitted && (
-        <div className="addproductsuccess">✓ محصول با موفقیت اضافه شد!</div>
-      )}
+      {submitted && <div className="addproductsuccess">✓ محصول با موفقیت اضافه شد!</div>}
 
       <form className="addproductform" onSubmit={handleSubmit}>
         <div className="formrow">
           <div className="formgroup">
             <label>نوع محصول *</label>
-            <input type="text" name="type" placeholder="مثلاً: گالوانیزه فوم‌دار" value={form.type} onChange={handleChange} />
-          </div>
-          <div className="formgroup">
-            <label>جنس *</label>
-            <input type="text" name="material" placeholder="مثلاً: گالوانیزه" value={form.material} onChange={handleChange} />
-          </div>
-        </div>
-
-        <div className="formrow">
-          <div className="formgroup">
-            <label>عرض</label>
-            <input type="text" name="width" placeholder="۸۰" value={form.width} onChange={handleChange} inputMode="numeric" />
-          </div>
-          <div className="formgroup">
-            <label>پوشش</label>
-            <input type="text" name="cover" placeholder="مثلاً: رنگ‌شده" value={form.cover} onChange={handleChange} />
-          </div>
-        </div>
-
-        <div className="formrow">
-          <div className="formgroup">
-            <label>رنگ *</label>
-            <input type="text" name="color" placeholder="مثلاً: سفید" value={form.color} onChange={handleChange} />
-          </div>
-          <div className="formgroup">
-            <label>طول شاخه</label>
-            <input type="text" name="length" placeholder="۶.۰۰ متر" value={form.length} onChange={handleChange} />
-          </div>
-        </div>
-
-        <div className="formrow">
-          <div className="formgroup">
-            <label>تعداد شاخه *</label>
-            <input type="text" name="count" placeholder="۰" value={form.count} onChange={handleChange} inputMode="numeric" />
-          </div>
-          <div className="formgroup">
-            <label>رنگ نمایش</label>
-            <select name="shade" value={form.shade} onChange={handleChange}>
-              <option value="white">سفید</option>
-              <option value="cream">کرم</option>
-              <option value="black">مشکی</option>
+            <select name="typeId" value={form.typeId} onChange={handleTypeChange}>
+              <option value="">انتخاب کنید...</option>
+              {productTypes.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({tofa(t.fields.length)} متغیر)
+                </option>
+              ))}
             </select>
           </div>
+          <div className="formgroup">
+            <label>نام محصول *</label>
+            <input
+              type="text"
+              name="name"
+              placeholder="مثلاً: گالوانیزه فوم‌دار"
+              value={form.name}
+              onChange={handleChange}
+              disabled={!type}
+            />
+          </div>
         </div>
 
-        <button type="submit" className="addproductbtn">
+        {type && (
+          <>
+            {typeFields.length === 0 ? (
+              <div className="settingsnote" style={{ marginBottom: 16 }}>
+                <FiInfo />
+                این نوع محصول هیچ متغیری ندارد. می‌توانید از بخش{" "}
+                <NavLink to="/settings">تنظیمات</NavLink> متغیر اضافه کنید.
+              </div>
+            ) : (
+              <>
+                <div className="typefieldstitle" style={{ marginTop: 0 }}>
+                  متغیرهای «{type.name}» (از تنظیمات)
+                </div>
+                {Array.from({ length: Math.ceil(typeFields.length / 2) }, (_, i) =>
+                  typeFields.slice(i * 2, i * 2 + 2)
+                ).map((pair, idx) => (
+                  <div className="formrow" key={idx}>
+                    {pair.map((f) => (
+                      <div className="formgroup" key={f.key}>
+                        <label>
+                          {f.label}
+                          {f.required ? " *" : ""}
+                        </label>
+                        {f.kind === "select" ? (
+                          <select
+                            value={form.attrs[f.key] || ""}
+                            onChange={(e) => handleAttr(f, e.target.value)}
+                          >
+                            <option value="">انتخاب کنید...</option>
+                            {f.options.map((o) => (
+                              <option key={o} value={o}>
+                                {o}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            inputMode={f.kind === "number" ? "decimal" : "text"}
+                            value={form.attrs[f.key] ?? ""}
+                            onChange={(e) => handleAttr(f, e.target.value)}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </>
+            )}
+
+            <div className="formrow">
+              <div className="formgroup">
+                <label>موجودی اولیه ({type.unit}) *</label>
+                <input
+                  type="text"
+                  name="count"
+                  placeholder="۰"
+                  value={form.count}
+                  onChange={handleChange}
+                  inputMode="numeric"
+                />
+              </div>
+              <div className="formgroup">
+                <label>رنگ نمایش</label>
+                <select name="shade" value={form.shade} onChange={handleChange}>
+                  <option value="white">سفید</option>
+                  <option value="cream">کرم</option>
+                  <option value="black">مشکی</option>
+                </select>
+              </div>
+            </div>
+          </>
+        )}
+
+        <button type="submit" className="addproductbtn" disabled={!type || busy}>
           <FiPlus />
-          افزودن محصول
+          {busy ? "در حال افزودن..." : "افزودن محصول"}
         </button>
       </form>
 
       <div className="addproductlist">
         <h3>محصولات ثبت‌شده ({tofa(products.length)})</h3>
         <div className="productgrid">
-          {products.map((p) => (
-            <div key={p.id} className="productcard">
-              <div className={`productshade productshade${p.shade}`}></div>
-              <h4>{p.type}</h4>
-              <p>{p.color}</p>
-              <span className="productcount">{tofa(p.count)} شاخه</span>
-            </div>
-          ))}
+          {products.map((p) => {
+            const t = findType(productTypes, p.typeId);
+            return (
+              <div key={p.id} className="productcard">
+                <div className={`productshade productshade${p.shade}`}></div>
+                <h4>{p.name}</h4>
+                <p>
+                  {t?.name}
+                  {variantLabel(t, p) ? ` · ${variantLabel(t, p)}` : ""}
+                </p>
+                <span className="productcount">
+                  {tofa(p.count)} {t?.unit}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

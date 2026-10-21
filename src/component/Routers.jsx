@@ -1,34 +1,71 @@
-import { createBrowserRouter } from "react-router-dom";
-import Shopdashboard from "../Pages/Shopdashboard";
-import Maindashboard from "./Shopdashboard/Maindashboard";
-import Product from "./Shopdashboard/Product";
-import Categories from "./Shopdashboard/Categories";
-import Auth from "../Pages/Auth";
+import { createBrowserRouter, useOutletContext } from "react-router-dom";
 
+import Maindashboard from "../pages/Maindashboard";
+import DashboardHome from "../component/DashboardHome";
+import Store from "../component/Store";
+import Outputs from "../component/Outputs";
+import Customers from "../component/Customers";
+import AddProduct from "../component/AddProduct";
+import Settings from "../component/Settings";
 
+function DashboardRoute() {
+  const { products, productTypes, customers, transactions } = useOutletContext();
+  return (
+    <DashboardHome
+      products={products}
+      productTypes={productTypes}
+      customers={customers}
+      transactions={transactions}
+    />
+  );
+}
 
+function InventoryRoute() {
+  const { products, productTypes } = useOutletContext();
+  return <Store products={products} productTypes={productTypes} />;
+}
 
-const Routers=createBrowserRouter([
-    {
-        path:"dashboard",
-        element:<Shopdashboard/>,
-        children:[
-            {
-                path:"",
-                element:<Maindashboard/>
-            },{
-                path:"product",
-                element:<Product/>
-            },{
-                path:"categories",
-                element:<Categories/>
-            }
-        ]
-    },{
-        path:"auth",
-        element:<Auth/>
-    }
-])
+function OutputsRoute() {
+  const { transactions } = useOutletContext();
+  return <Outputs transactions={transactions} />;
+}
 
+function CustomersRoute() {
+  const { customers, actions, products, productTypes, transactions } = useOutletContext();
+  return (
+    <Customers
+      customers={customers}
+      actions={actions}
+      products={products}
+      productTypes={productTypes}
+      transactions={transactions}
+    />
+  );
+}
 
-export default Routers
+function AddProductRoute() {
+  const { products, productTypes, actions } = useOutletContext();
+  return <AddProduct products={products} productTypes={productTypes} actions={actions} />;
+}
+
+function SettingsRoute() {
+  const { productTypes, products, actions } = useOutletContext();
+  return <Settings productTypes={productTypes} products={products} actions={actions} />;
+}
+
+const Routers = createBrowserRouter([
+  {
+    path: "/",
+    element: <Maindashboard />,
+    children: [
+      { index: true, element: <DashboardRoute /> },
+      { path: "inventory", element: <InventoryRoute /> },
+      { path: "outputs", element: <OutputsRoute /> },
+      { path: "customers", element: <CustomersRoute /> },
+      { path: "add-product", element: <AddProductRoute /> },
+      { path: "settings", element: <SettingsRoute /> },
+    ],
+  },
+]);
+
+export default Routers;

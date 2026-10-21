@@ -1,118 +1,329 @@
 import React, { useState } from "react";
-import { FiSettings, FiSave, FiAlertCircle } from "react-icons/fi";
+import {
+  FiSettings,
+  FiSave,
+  FiAlertCircle,
+  FiPlus,
+  FiEdit,
+  FiTrash2,
+  FiLayers,
+  FiX,
+  FiInfo,
+} from "react-icons/fi";
+import { tofa } from "../utils/format";
 
-const Settings = () => {
-  const [settings, setSettings] = useState({
-    storeName: "مدیریت انبار استوکورا",
-    adminEmail: "admin@stockora.ir",
-    phone: "۰۲۱-۱۲۳۴۵۶۷۸",
-    address: "تهران، خیابان انقلاب",
-    minStock: "۵",
-    currency: "تومان",
-  });
+const KIND_OPTIONS = [
+  { value: "text", label: "متن" },
+  { value: "number", label: "عدد" },
+  { value: "select", label: "انتخابی (لیست)" },
+];
 
-  const [saved, setSaved] = useState(false);
+const newField = () => ({
+  tmp: `n_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+  label: "",
+  kind: "text",
+  required: false,
+  optionsText: "",
+});
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setSettings({ ...settings, [name]: value });
+const typeToEditor = (t) => ({
+  id: t.id,
+  name: t.name,
+  unit: t.unit,
+  fields: t.fields.map((f) => ({
+    ...f,
+    optionsText: (f.options || []).join("، "),
+  })),
+});
+
+const Settings = ({ productTypes = [], products = [], actions }) => {
+  const [editor, setEditor] = useState(null);
+  const [typeSaved, setTypeSaved] = useState(false);
+
+  const startNew = () => setEditor({ name: "", unit: "عدد", fields: [newField()] });
+
+  const patchEditor = (patch) => setEditor({ ...editor, ...patch });
+
+  const patchField = (index, patch) =>
+    patchEditor({
+      fields: editor.fields.map((f, i) => (i === index ? { ...f, ...patch } : f)),
+    });
+
+  const removeField = (index) =>
+    patchEditor({ fields: editor.fields.filter((_, i) => i !== index) });
+
+  const saveType = async () => {
+    // اعتبارسنجی
+    if (!editor.name.trim()) {
+      alert("نام نوع محصول الزامی است!");
+      return;
+    }
+    if (!editor.unit.trim()) {
+      alert("واحد شمارش الزامی است!");
+      return;
+    }
+    const invalidField = editor.fields.find((f) => !f.label.trim());
+    if (invalidField) {
+      alert("عنوان همه‌ی متغیرها را پر کنید (یا متغیر خالی را حذف کنید).");
+      return;
+    }
+    const invalidSelect = editor.fields.find(
+      (f) => f.kind === "select" && !f.optionsText.trim()
+    );
+    if (invalidSelect) {
+      alert(`متغیر «${invalidSelect.label}» از نوع انتخابی است و باید گزینه داشته باشد.`);
+      return;
+    }
+
+    const payload = {
+      id: editor.id,
+      name: editor.name.trim(),
+      unit: editor.unit.trim(),
+      fields: editor.fields.map(({ tmp, optionsText, ...f }) => ({
+        ...f,
+        label: f.label.trim(),
+        options:
+          f.kind === "select"
+            ? optionsText
+                .split(/[,،\n]/)
+                .map((o) => o.trim())
+                .filter(Boolean)
+            : [],
+      })),
+    };
+
+    try {
+      await actions.saveProductType(payload);
+      setEditor(null);
+      setTypeSaved(true);
+      setTimeout(() => setTypeSaved(false), 3000);
+    } catch (e) {
+      alert(e.message || "خطایی رخ داد");
+    }
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  const deleteType = async (t) => {
+    const count = products.filter((p) => p.typeId === t.id).length;
+    if (count > 0) {
+      alert(`این نوع ${tofa(count)} محصول دارد و قابل حذف نیست.`);
+      return;
+    }
+    if (!window.confirm(`نوع «${t.name}» حذف شود؟`)) return;
+    try {
+      await actions.deleteProductType(t.id);
+    } catch (e) {
+      alert(e.message || "خطایی رخ داد");
+    }
   };
 
   return (
     <div className="settingspage">
       <div className="settingstitle">
         <FiSettings />
-        <h2>تنظیمات</h2>
+        <h2>تنظیمات محصولات و متغیرها</h2>
+        {!editor && (
+          <button type="button" className="settingsaddtypebtn" onClick={startNew}>
+            <FiPlus />
+            نوع جدید
+          </button>
+        )}
       </div>
 
-      {saved && (
-        <div className="addproductsuccess">
-          ✓ تنظیمات با موفقیت ذخیره شد!
+      <div className="settingsnote">
+        <FiInfo />
+        <span>
+          در این بخش انواع محصول را تعریف کنید و برای هر نوع، متغیرهای اختصاصی
+          (مثل رنگ، سایز، جنس...) را مشخص کنید. این متغیرها هنگام افزودن محصول و
+          فیلتر کردن لیست محصولات استفاده می‌شوند.
+        </span>
+      </div>
+
+      {typeSaved && (
+        <div className="addproductsuccess">✓ نوع محصول با موفقیت ذخیره شد!</div>
+      )}
+
+      {/* --------- حالت نمایش لیست --------- */}
+      {!editor && (
+        <div className="typelist">
+          {productTypes.length === 0 ? (
+            <div className="settingsempty">
+              <FiLayers />
+              <p>هنوز هیچ نوع محصولی تعریف نشده است.</p>
+              <button type="button" className="settingsaddtypebtn" onClick={startNew}>
+                <FiPlus />
+                اولین نوع محصول را بسازید
+              </button>
+            </div>
+          ) : (
+            productTypes.map((t) => {
+              const productCount = products.filter((p) => p.typeId === t.id).length;
+              return (
+                <div className="typeitem" key={t.id}>
+                  <div className="typeiteminfo">
+                    <div className="typeitemtitle">
+                      <strong>{t.name}</strong>
+                      <span className="typeitemunit">واحد: {t.unit}</span>
+                      <span className="typeitemcount">
+                        {tofa(productCount)} محصول
+                      </span>
+                    </div>
+                    <div className="typeitemfields">
+                      {t.fields.length === 0 ? (
+                        <span className="typechip typechipmuted">بدون متغیر</span>
+                      ) : (
+                        t.fields.map((f) => (
+                          <span className="typechip" key={f.key}>
+                            {f.label}
+                            {f.required ? " *" : ""}
+                            {f.kind === "select" && (
+                              <em className="typechipoptions">
+                                {f.options.join(" / ")}
+                              </em>
+                            )}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  <div className="typeitemactions">
+                    <button
+                      type="button"
+                      className="customerbtn-edit"
+                      title="ویرایش"
+                      onClick={() => setEditor(typeToEditor(t))}
+                    >
+                      <FiEdit />
+                    </button>
+                    <button
+                      type="button"
+                      className="customerbtn-delete"
+                      title="حذف"
+                      onClick={() => deleteType(t)}
+                      disabled={productCount > 0}
+                    >
+                      <FiTrash2 />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       )}
 
-      <div className="settingscard">
-        <h3>اطلاعات فروشگاه</h3>
-        <div className="formrow">
-          <div className="formgroup">
-            <label>نام فروشگاه</label>
-            <input
-              type="text"
-              name="storeName"
-              value={settings.storeName}
-              onChange={handleChange}
-            />
+      {/* --------- حالت ویرایش/افزودن --------- */}
+      {editor && (
+        <div className="typeeditor">
+          <div className="typeeditorheader">
+            <h3>{editor.id ? "ویرایش نوع محصول" : "افزودن نوع محصول جدید"}</h3>
           </div>
-          <div className="formgroup">
-            <label>ایمیل مدیر</label>
-            <input
-              type="email"
-              name="adminEmail"
-              value={settings.adminEmail}
-              onChange={handleChange}
-            />
-          </div>
-        </div>
 
-        <div className="formrow">
-          <div className="formgroup">
-            <label>شماره تماس</label>
-            <input
-              type="tel"
-              name="phone"
-              value={settings.phone}
-              onChange={handleChange}
-            />
+          <div className="formrow">
+            <div className="formgroup">
+              <label>نام نوع *</label>
+              <input
+                type="text"
+                placeholder="مثلاً: تیغه"
+                value={editor.name}
+                onChange={(e) => patchEditor({ name: e.target.value })}
+              />
+            </div>
+            <div className="formgroup">
+              <label>واحد شمارش *</label>
+              <input
+                type="text"
+                placeholder="مثلاً: شاخه، عدد، متر"
+                value={editor.unit}
+                onChange={(e) => patchEditor({ unit: e.target.value })}
+              />
+            </div>
           </div>
-          <div className="formgroup">
-            <label>آدرس</label>
-            <input
-              type="text"
-              name="address"
-              value={settings.address}
-              onChange={handleChange}
-            />
-          </div>
-        </div>
-      </div>
 
-      <div className="settingscard">
-        <h3>تنظیمات موجودی</h3>
-        <div className="formrow">
-          <div className="formgroup">
-            <label>حد کمینه موجودی</label>
-            <input
-              type="number"
-              name="minStock"
-              value={settings.minStock}
-              onChange={handleChange}
-            />
+          <div className="typefieldstitle">
+            <FiLayers />
+            متغیرها
+            <span className="typefieldsdesc">
+              (این فیلدها هنگام افزودن محصول از این نوع پر می‌شوند)
+            </span>
           </div>
-          <div className="formgroup">
-            <label>ارز</label>
-            <input
-              type="text"
-              name="currency"
-              value={settings.currency}
-              onChange={handleChange}
-            />
-          </div>
-        </div>
-        <div className="settingsnote">
-          <FiAlertCircle />
-          محصولاتی که موجودی آن‌ها از این عدد کمتر باشد، هشدار داده می‌شوند.
-        </div>
-      </div>
 
-      <button className="settingssavebtn" onClick={handleSave}>
-        <FiSave />
-        ذخیره تنظیمات
-      </button>
+          {editor.fields.length === 0 && (
+            <div className="settingsnote" style={{ marginTop: 0 }}>
+              <FiAlertCircle />
+              این نوع هیچ متغیری ندارد. با دکمه زیر اضافه کنید.
+            </div>
+          )}
+
+          {editor.fields.map((f, i) => (
+            <div className="typefieldrow" key={f.key || f.tmp}>
+              <input
+                type="text"
+                placeholder="عنوان متغیر (مثلاً رنگ)"
+                value={f.label}
+                onChange={(e) => patchField(i, { label: e.target.value })}
+              />
+              <select
+                value={f.kind}
+                onChange={(e) => patchField(i, { kind: e.target.value })}
+              >
+                {KIND_OPTIONS.map((k) => (
+                  <option key={k.value} value={k.value}>
+                    {k.label}
+                  </option>
+                ))}
+              </select>
+              {f.kind === "select" && (
+                <input
+                  type="text"
+                  className="typefieldoptions"
+                  placeholder="گزینه‌ها با ویرگول (مثلاً: قرمز، آبی، سبز)"
+                  value={f.optionsText}
+                  onChange={(e) => patchField(i, { optionsText: e.target.value })}
+                />
+              )}
+              <label className="typefieldrequired">
+                <input
+                  type="checkbox"
+                  checked={f.required}
+                  onChange={(e) => patchField(i, { required: e.target.checked })}
+                />
+                الزامی
+              </label>
+              <button
+                type="button"
+                className="typefieldremove"
+                title="حذف متغیر"
+                onClick={() => removeField(i)}
+              >
+                <FiX />
+              </button>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            className="typefieldadd"
+            onClick={() => patchEditor({ fields: [...editor.fields, newField()] })}
+          >
+            <FiPlus />
+            افزودن متغیر
+          </button>
+
+          <div className="typeeditorfooter">
+            <button
+              type="button"
+              className="typecancelbtn"
+              onClick={() => setEditor(null)}
+            >
+              لغو
+            </button>
+            <button type="button" className="settingssavebtn" onClick={saveType}>
+              <FiSave />
+              ذخیره نوع محصول
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

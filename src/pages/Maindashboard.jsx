@@ -1,85 +1,200 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Outlet } from "react-router-dom";
 import Rightmenu from "../component/Rightmenu";
 import {
-  FiSearch,
-  FiChevronDown,
   FiUser,
   FiBox,
   FiPackage,
-  FiAlertTriangle,
   FiUsers,
+  FiCalendar,
+  FiChevronDown,
+  FiSun,
+  FiMoon,
 } from "react-icons/fi";
-import Store from "../component/Store";
-import TransactionLog from "../component/TransactionLog";
-import Customers from "../component/Customers";
-import AddProduct from "../component/AddProduct";
-import Settings from "../component/Settings";
+import api from "../services/api";
+import { tofa } from "../utils/format";
+import { useTheme } from "../component/ThemeContext";
 
-const tofa = (n) => Number(n).toLocaleString("fa-IR");
+const Maindashboard = () => {
+  const currentUser = "علی کیوانلو";
+  const { theme, toggleTheme } = useTheme();
 
-// --- داشبورد: الان داده واقعی می‌گیره ---
-const Dashboard = ({
-  products,
-  customers,
-  transactions,
-  setProducts,
-  setTransactions,
-  setCustomers,
-  currentUser,
-  setActiveTab,
-}) => {
+  const [transactions, setTransactions] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [productTypes, setProductTypes] = useState([]);
+  const [settings, setSettings] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    Promise.all([
+      api.getProducts(),
+      api.getProductTypes(),
+      api.getCustomers(),
+      api.getTransactions(),
+      api.getSettings(),
+    ])
+      .then(([p, t, c, tx, s]) => {
+        if (!alive) return;
+        setProducts(p);
+        setProductTypes(t);
+        setCustomers(c);
+        setTransactions(tx);
+        setSettings(s);
+      })
+      .catch((e) => alive && setLoadError(e.message || "خطا در دریافت اطلاعات"))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const upsertCustomer = (customer) => {
+    if (!customer) return;
+    setCustomers((prev) =>
+      prev.some((c) => c.id === customer.id)
+        ? prev.map((c) => (c.id === customer.id ? customer : c))
+        : [...prev, customer]
+    );
+  };
+
+  const refreshTransactions = async () => {
+    try {
+      const tx = await api.getTransactions();
+      setTransactions(tx);
+    } catch {
+      /* silent */
+    }
+  };
+
+  const actions = {
+    async addProduct(data) {
+      const { product, transaction } = await api.createProduct({ ...data, user: currentUser });
+      setProducts((prev) => [...prev, product]);
+      if (transaction) setTransactions((prev) => [transaction, ...prev]);
+      return product;
+    },
+    async adjustStock(payload) {
+      const { product, transaction, customer } = await api.adjustStock({
+        ...payload,
+        user: currentUser,
+      });
+      setProducts((prev) => prev.map((p) => (p.id === product.id ? product : p)));
+      if (transaction) setTransactions((prev) => [transaction, ...prev]);
+      upsertCustomer(customer);
+      await refreshTransactions();
+      return product;
+    },
+    async saveSettings(next) {
+      const saved = await api.saveSettings(next);
+      setSettings(saved);
+      return saved;
+    },
+    async saveProductType(type) {
+      const saved = await api.saveProductType(type);
+      setProductTypes((prev) =>
+        prev.some((t) => t.id === saved.id)
+          ? prev.map((t) => (t.id === saved.id ? saved : t))
+          : [...prev, saved]
+      );
+      return saved;
+    },
+    async deleteProductType(id) {
+      await api.deleteProductType(id);
+      setProductTypes((prev) => prev.filter((t) => t.id !== id));
+    },
+    async addCustomer(data) {
+      const created = await api.addCustomer(data);
+      setCustomers((prev) => [...prev, created]);
+      return created;
+    },
+    async updateCustomer(data) {
+      const updated = await api.updateCustomer(data);
+      upsertCustomer(updated);
+      return updated;
+    },
+    async deleteCustomer(id) {
+      await api.deleteCustomer(id);
+      setCustomers((prev) => prev.filter((c) => c.id !== id));
+    },
+  };
+
   const stats = useMemo(() => {
     const totalStock = products.reduce((s, p) => s + p.count, 0);
-    const lowStock = products.filter((p) => p.count < 10).length;
+    const outToday = transactions.filter(
+      (t) =>
+        t.kind === "sale" &&
+        new Date(t.createdAt).toDateString() === new Date().toDateString()
+    ).length;
     return {
       totalStock,
-      lowStock,
       productTypes: products.length,
       customersCount: customers.length,
+      outToday,
     };
-  }, [products, customers]);
+  }, [products, customers, transactions]);
+
+  const outletContext = {
+    products,
+    productTypes,
+    settings,
+    customers,
+    transactions,
+    currentUser,
+    actions,
+  };
 
   return (
-    <div className="dashboardpage">
-      <div className="topheader">
-        <div className="topheaderbar">
-          <div className="topheadersearch">
-            <span className="topheadersearchicon">
-              <FiSearch />
-            </span>
-            <input
-              className="topheadersearchinput"
-              type="text"
-              placeholder="جستجو..."
-            />
-          </div>
-          <div className="topheaderuser">
-            <div className="topheaderavatar">
-              <FiUser />
-            </div>
-            <div className="topheaderusertext">
-              <div className="topheadername">{currentUser}</div>
-              <div className="topheaderrole">مدیر</div>
-            </div>
-            <span className="topheaderchevron">
-              <FiChevronDown />
-            </span>
-          </div>
-        </div>
+    <div className="maindashboard">
+      <div className="right">
+        <Rightmenu />
+      </div>
 
-        <div className="topheaderwelcome">
-          <div className="topheaderwelcomeinfo">
-            <div className="topheaderwelcomeicon">
-              <FiBox />
+      <div className="left">
+        <header className="topheader">
+          <div className="topheaderbar">
+            <div className="topheaderwelcomeinline">
+              <span className="topheaderwelcomeemoji">👋</span>
+              <div>
+                <div className="topheadername">سلام {currentUser.split(" ")[0]}!</div>
+                <div className="topheaderrole">
+                  امروز {tofa(stats.outToday)} خروجی ثبت شده است
+                </div>
+              </div>
             </div>
-            <div className="topheaderwelcometexts">
-              <h2 className="topheaderwelcometitle">
-                به پنل مدیریت انبار خوش آمدید
-              </h2>
-              <p className="topheaderwelcometext">
-                در این بخش می‌توانید موجودی تیغه‌ها و مشتریان خود را مدیریت
-                کنید.
-              </p>
+
+            <div className="topheaderbarright">
+              <button
+                className="topheadertheme"
+                onClick={toggleTheme}
+                title={theme === "dark" ? "حالت روشن" : "حالت تاریک"}
+              >
+                {theme === "dark" ? <FiSun /> : <FiMoon />}
+              </button>
+              <div className="topheaderdate">
+                <FiCalendar />
+                <span>
+                  {new Intl.DateTimeFormat("fa-IR", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                  }).format(new Date())}
+                </span>
+              </div>
+              <div className="topheaderuser">
+                <div className="topheaderavatar">
+                  <FiUser />
+                </div>
+                <div className="topheaderusertext">
+                  <div className="topheadername">{currentUser}</div>
+                  <div className="topheaderrole">مدیر</div>
+                </div>
+                <span className="topheaderchevron">
+                  <FiChevronDown />
+                </span>
+              </div>
             </div>
           </div>
 
@@ -91,17 +206,7 @@ const Dashboard = ({
               <div className="topheaderstatinfo">
                 <div className="topheaderstatlabel">موجودی کل</div>
                 <div className="topheaderstatvalue">{tofa(stats.totalStock)}</div>
-                <div className="topheaderstatunit">شاخه</div>
-              </div>
-            </div>
-
-            <div className="topheaderstat topheaderstatorange">
-              <div className="topheaderstaticon">
-                <FiAlertTriangle />
-              </div>
-              <div className="topheaderstatinfo">
-                <div className="topheaderstatlabel">موجودی کم</div>
-                <div className="topheaderstatvalue">{tofa(stats.lowStock)}</div>
+                <div className="topheaderstatunit">واحد</div>
               </div>
             </div>
 
@@ -111,9 +216,7 @@ const Dashboard = ({
               </div>
               <div className="topheaderstatinfo">
                 <div className="topheaderstatlabel">کل محصولات</div>
-                <div className="topheaderstatvalue">
-                  {tofa(stats.productTypes)}
-                </div>
+                <div className="topheaderstatvalue">{tofa(stats.productTypes)}</div>
               </div>
             </div>
 
@@ -123,101 +226,21 @@ const Dashboard = ({
               </div>
               <div className="topheaderstatinfo">
                 <div className="topheaderstatlabel">کل مشتریان</div>
-                <div className="topheaderstatvalue">
-                  {tofa(stats.customersCount)}
-                </div>
+                <div className="topheaderstatvalue">{tofa(stats.customersCount)}</div>
               </div>
             </div>
           </div>
+        </header>
+
+        <div className="content">
+          {loading ? (
+            <div className="pagestatus">در حال دریافت اطلاعات...</div>
+          ) : loadError ? (
+            <div className="pagestatus pagestatuserror">{loadError}</div>
+          ) : (
+            <Outlet context={outletContext} />
+          )}
         </div>
-      </div>
-
-      <div className="content">
-        <Store
-          products={products}
-          setProducts={setProducts}
-          setTransactions={setTransactions}
-          currentUser={currentUser}
-          customers={customers}
-          setCustomers={setCustomers}
-        />
-        <TransactionLog transactions={transactions} />
-      </div>
-    </div>
-  );
-};
-
-const Maindashboard = () => {
-  const currentUser = "علی کیوانلو";
-
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [transactions, setTransactions] = useState([]);
-  const [products, setProducts] = useState([
-    { id: 1, type: "گالوانیزه فوم‌دار", material: "گالوانیزه", width: 80, cover: "رنگ‌شده", color: "سفید", length: "۶.۰۰ متر", count: 72, shade: "white" },
-    { id: 2, type: "گالوانیزه فوم‌دار", material: "گالوانیزه", width: 80, cover: "رنگ‌شده", color: "سفید", length: "۶.۵۵ متر", count: 103, shade: "cream" },
-    { id: 3, type: "گالوانیزه فوم‌دار", material: "گالوانیزه", width: 80, cover: "رنگ‌شده", color: "کرم", length: "۶.۰۰ متر", count: 56, shade: "white" },
-    { id: 4, type: "گالوانیزه فوم‌دار", material: "گالوانیزه", width: 80, cover: "رنگ‌شده", color: "مشکی", length: "۶.۵۰ متر", count: 82, shade: "black" },
-    { id: 5, type: "آلومینیومی تک‌رول", material: "آلومینیوم", width: 80, cover: "خودرنگ", color: "سفید", length: "۵.۲۵ متر", count: 88, shade: "white" },
-    { id: 6, type: "آلومینیومی تک‌رول", material: "آلومینیوم", width: 80, cover: "خودرنگ", color: "مشکی", length: "۶.۰۰ متر", count: 64, shade: "black" },
-  ]);
-  const [customers, setCustomers] = useState([
-    { id: 1, name: "کمپانی الف", phone: "۰۹۱۲۳۴۵۶۷۸۹", address: "تهران", totalPurchase: 3200 },
-    { id: 2, name: "مجموعه ب", phone: "۰۹۸۷۶۵۴۳۲۱۰", address: "تبریز", totalPurchase: 1850 },
-  ]);
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case "dashboard":
-        return (
-          <Dashboard
-            products={products}
-            customers={customers}
-            transactions={transactions}
-            setProducts={setProducts}
-            setTransactions={setTransactions}
-            setCustomers={setCustomers}
-            currentUser={currentUser}
-            setActiveTab={setActiveTab}
-          />
-        );
-      case "inventory":
-        return (
-          <Store
-            products={products}
-            setProducts={setProducts}
-            setTransactions={setTransactions}
-            currentUser={currentUser}
-            customers={customers}
-            setCustomers={setCustomers}
-          />
-        );
-      case "transactions":
-        return <TransactionLog transactions={transactions} />;
-      case "customers":
-        return <Customers customers={customers} setCustomers={setCustomers} />;
-      case "addproduct":
-        return (
-          <AddProduct
-            products={products}
-            setProducts={setProducts}
-            setTransactions={setTransactions}
-            currentUser={currentUser}
-          />
-        );
-      case "settings":
-        return <Settings />;
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <div className="maindashboard">
-      <div className="right">
-        <Rightmenu activeTab={activeTab} setActiveTab={setActiveTab} />
-      </div>
-      <div className="left">
-        <div className="pagecontent">{renderContent()}</div>
       </div>
     </div>
   );
