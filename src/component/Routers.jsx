@@ -1,3 +1,4 @@
+
 import { createBrowserRouter, useOutletContext } from "react-router-dom";
 
 import Maindashboard from "../pages/Maindashboard";
@@ -10,6 +11,7 @@ import Settings from "../component/Settings";
 
 function DashboardRoute() {
   const { products, productTypes, customers, transactions } = useOutletContext();
+
   return (
     <DashboardHome
       products={products}
@@ -22,16 +24,20 @@ function DashboardRoute() {
 
 function InventoryRoute() {
   const { products, productTypes } = useOutletContext();
+
   return <Store products={products} productTypes={productTypes} />;
 }
 
 function OutputsRoute() {
   const { transactions } = useOutletContext();
+
   return <Outputs transactions={transactions} />;
 }
 
 function CustomersRoute() {
-  const { customers, actions, products, productTypes, transactions } = useOutletContext();
+  const { customers, actions, products, productTypes, transactions } =
+    useOutletContext();
+
   return (
     <Customers
       customers={customers}
@@ -45,27 +51,46 @@ function CustomersRoute() {
 
 function AddProductRoute() {
   const { products, productTypes, actions } = useOutletContext();
-  return <AddProduct products={products} productTypes={productTypes} actions={actions} />;
+
+  return (
+    <AddProduct
+      products={products}
+      productTypes={productTypes}
+      actions={actions}
+    />
+  );
 }
 
 function SettingsRoute() {
   const { productTypes, products, actions } = useOutletContext();
-  return <Settings productTypes={productTypes} products={products} actions={actions} />;
+
+  return (
+    <Settings
+      productTypes={productTypes}
+      products={products}
+      actions={actions}
+    />
+  );
 }
 
-const Routers = createBrowserRouter([
+const Routers = createBrowserRouter(
+  [
+    {
+      path: "/",
+      element: <Maindashboard />,
+      children: [
+        { index: true, element: <DashboardRoute /> },
+        { path: "inventory", element: <InventoryRoute /> },
+        { path: "outputs", element: <OutputsRoute /> },
+        { path: "customers", element: <CustomersRoute /> },
+        { path: "add-product", element: <AddProductRoute /> },
+        { path: "settings", element: <SettingsRoute /> },
+      ],
+    },
+  ],
   {
-    path: "/",
-    element: <Maindashboard />,
-    children: [
-      { index: true, element: <DashboardRoute /> },
-      { path: "inventory", element: <InventoryRoute /> },
-      { path: "outputs", element: <OutputsRoute /> },
-      { path: "customers", element: <CustomersRoute /> },
-      { path: "add-product", element: <AddProductRoute /> },
-      { path: "settings", element: <SettingsRoute /> },
-    ],
-  },
-]);
+    basename: "/stockora",
+  }
+);
 
 export default Routers;
