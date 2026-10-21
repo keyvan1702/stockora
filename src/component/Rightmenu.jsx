@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   FiBox,
   FiHome,
@@ -13,13 +13,13 @@ import {
 const menuitems = [
   { key: "dashboard", label: "داشبورد", icon: <FiHome /> },
   { key: "inventory", label: "موجودی انبار", icon: <FiArchive /> },
+  { key: "transactions", label: "تراکنش‌ها", icon: <FiBarChart2 /> },
   { key: "customers", label: "مشتریان", icon: <FiUsers /> },
   { key: "addproduct", label: "افزودن محصول", icon: <FiPlus /> },
   { key: "settings", label: "تنظیمات", icon: <FiSettings /> },
 ];
 
-const Rightmenu = () => {
-  let [active, setactive] = useState("dashboard");
+const Rightmenu = ({ activeTab, setActiveTab }) => {
   return (
     <div className="rightmenu">
       <div className="rightmenubrand">
@@ -33,10 +33,10 @@ const Rightmenu = () => {
           <li
             key={item.key}
             className={`rightmenuitem ${
-              active === item.key ? "rightmenuitemactive" : ""
+              activeTab === item.key ? "rightmenuitemactive" : ""
             }`}
             onClick={() => {
-              setactive(item.key);
+              setActiveTab(item.key);
             }}
           >
             <span className="rightmenuitemicon">{item.icon}</span>
