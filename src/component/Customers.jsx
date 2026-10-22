@@ -19,6 +19,55 @@ import Select from "./Select";
 
 const normalizeName = (name) => (name || "").trim().replace(/\s+/g, " ");
 
+/**
+ * ساخت رشته‌ی آدرس از اجزای ساختاریافته.
+ * فقط اجزای غیرخالی را با «، » به هم می‌چسباند.
+ */
+const buildAddress = ({ city, street, alley, plaque }) => {
+  const parts = [];
+  if (city?.trim()) parts.push(`شهر: ${city.trim()}`);
+  if (street?.trim()) parts.push(`خیابان: ${street.trim()}`);
+  if (alley?.trim()) parts.push(`کوچه: ${alley.trim()}`);
+  if (plaque?.trim()) parts.push(`پلاک: ${plaque.trim()}`);
+  return parts.join("، ");
+};
+
+/**
+ * تلاش می‌کند رشته‌ی آدرس ذخیره‌شده را به اجزای ساختاریافته بشکند.
+ * اگر با فرمت ساختاریافته نبود، همه را داخل «خیابان» می‌ریزد.
+ */
+const parseAddress = (address) => {
+  const empty = { city: "", street: "", alley: "", plaque: "" };
+  if (!address || !address.trim()) return empty;
+
+  const s = address.trim();
+  if (/^شهر\s*:/.test(s)) {
+    const parts = s.split(/،\s*/);
+    const result = { ...empty };
+    parts.forEach((p) => {
+      const [k, ...rest] = p.split(":");
+      const key = k.trim();
+      const value = rest.join(":").trim();
+      if (key === "شهر") result.city = value;
+      else if (key === "خیابان") result.street = value;
+      else if (key === "کوچه") result.alley = value;
+      else if (key === "پلاک") result.plaque = value;
+    });
+    return result;
+  }
+
+  return { ...empty, street: s };
+};
+
+const emptyCustomerForm = () => ({
+  name: "",
+  phone: "",
+  city: "",
+  street: "",
+  alley: "",
+  plaque: "",
+});
+
 const Customers = ({
   customers = [],
   actions,
@@ -31,13 +80,11 @@ const Customers = ({
   const [search, setSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", address: "" });
+  const [newCustomer, setNewCustomer] = useState(emptyCustomerForm());
   const [expanded, setExpanded] = useState(null);
   const [purchaseModal, setPurchaseModal] = useState(null);
   const [purchaseForm, setPurchaseForm] = useState({ productId: "", qty: "", note: "" });
   const [busy, setBusy] = useState(false);
-
-  // مودال جزئیات خرید (با کلیک روی عدد «کل خرید»)
   const [purchasesModal, setPurchasesModal] = useState(null);
 
   const purchasesByCustomer = useMemo(() => {
@@ -61,16 +108,17 @@ const Customers = ({
 
   const openAdd = () => {
     setEditingId(null);
-    setNewCustomer({ name: "", phone: "", address: "" });
+    setNewCustomer(emptyCustomerForm());
     setShowAddModal(true);
   };
 
   const openEdit = (customer) => {
     setEditingId(customer.id);
+    const parsed = parseAddress(customer.address);
     setNewCustomer({
       name: customer.name,
       phone: customer.phone || "",
-      address: customer.address || "",
+      ...parsed,
     });
     setShowAddModal(true);
   };
@@ -80,10 +128,18 @@ const Customers = ({
       toast.error("نام و شماره تماس الزامی است!");
       return;
     }
+
+    const address = buildAddress(newCustomer);
+    const payload = {
+      name: newCustomer.name.trim(),
+      phone: newCustomer.phone.trim(),
+      address,
+    };
+
     try {
-      if (editingId) await actions.updateCustomer({ id: editingId, ...newCustomer });
-      else await actions.addCustomer(newCustomer);
-      setNewCustomer({ name: "", phone: "", address: "" });
+      if (editingId) await actions.updateCustomer({ id: editingId, ...payload });
+      else await actions.addCustomer(payload);
+      setNewCustomer(emptyCustomerForm());
       setEditingId(null);
       setShowAddModal(false);
     } catch {
@@ -143,17 +199,16 @@ const Customers = ({
 
   const productTypeOf = (product) => findType(productTypes, product.typeId);
 
-  // باز کردن مودال جزئیات خرید
   const openPurchasesModal = (customer) => {
     const items = purchasesByCustomer.get(normalizeName(customer.name)) || [];
     setPurchasesModal({
       customerName: customer.name,
       phone: customer.phone || "",
+      address: customer.address || "",
       items,
     });
   };
 
-  // جمع‌بندی مودال
   const modalSummary = useMemo(() => {
     if (!purchasesModal) return { count: 0, totalQty: 0, products: 0 };
     const items = purchasesModal.items;
@@ -213,14 +268,58 @@ const Customers = ({
                   onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
                 />
               </div>
-              <div className="storemodalinputgroup">
-                <label>آدرس</label>
-                <input
-                  type="text"
-                  placeholder="آدرس"
-                  value={newCustomer.address}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
-                />
+
+              <div className="storemodaladdress">
+                <div className="storemodaladdress-title">
+                  <FiMapPin /> آدرس <span>(اختیاری)</span>
+                </div>
+
+                <div className="storemodaladdress-grid">
+                  <div className="storemodalinputgroup">
+                    <label>شهر</label>
+                    <input
+                      type="text"
+                      placeholder="مثلاً تهران"
+                      value={newCustomer.city}
+                      onChange={(e) =>
+                        setNewCustomer({ ...newCustomer, city: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="storemodalinputgroup">
+                    <label>خیابان</label>
+                    <input
+                      type="text"
+                      placeholder="مثلاً ولیعصر"
+                      value={newCustomer.street}
+                      onChange={(e) =>
+                        setNewCustomer({ ...newCustomer, street: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="storemodalinputgroup">
+                    <label>کوچه</label>
+                    <input
+                      type="text"
+                      placeholder="مثلاً بهار"
+                      value={newCustomer.alley}
+                      onChange={(e) =>
+                        setNewCustomer({ ...newCustomer, alley: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="storemodalinputgroup">
+                    <label>پلاک</label>
+                    <input
+                      type="text"
+                      placeholder="مثلاً ۱۲"
+                      value={newCustomer.plaque}
+                      onChange={(e) =>
+                        setNewCustomer({ ...newCustomer, plaque: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
               </div>
             </div>
             <div className="storemodalfooter">
@@ -292,7 +391,6 @@ const Customers = ({
         </div>
       )}
 
-      {/* ---------- مودال جزئیات خرید مشتری ---------- */}
       {purchasesModal && (
         <div className="storemodal storemodaloverlay">
           <div className="storemodalcontent purchasesmodal">
@@ -307,11 +405,18 @@ const Customers = ({
             </div>
 
             <div className="storemodalinputs purchasesmodal-body">
-              {purchasesModal.phone && (
+              {(purchasesModal.phone || purchasesModal.address) && (
                 <div className="purchasesmodal-meta">
-                  <span>
-                    <FiPhone /> {purchasesModal.phone}
-                  </span>
+                  {purchasesModal.phone && (
+                    <span>
+                      <FiPhone /> {purchasesModal.phone}
+                    </span>
+                  )}
+                  {purchasesModal.address && (
+                    <span>
+                      <FiMapPin /> {purchasesModal.address}
+                    </span>
+                  )}
                 </div>
               )}
 
@@ -417,7 +522,7 @@ const Customers = ({
                       <td data-label="آدرس">
                         <span className="customerinfo">
                           <FiMapPin />
-                          {customer.address}
+                          {customer.address || "—"}
                         </span>
                       </td>
                       <td data-label="کل خرید">
