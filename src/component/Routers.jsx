@@ -23,9 +23,9 @@ function DashboardRoute() {
 }
 
 function InventoryRoute() {
-  const { products, productTypes } = useOutletContext();
+  const { products, productTypes, actions } = useOutletContext();
 
-  return <Store products={products} productTypes={productTypes} />;
+  return <Store products={products} productTypes={productTypes} actions={actions} />;
 }
 
 function OutputsRoute() {
