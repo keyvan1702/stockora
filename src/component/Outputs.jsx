@@ -3,13 +3,15 @@ import {
   FiShoppingBag,
   FiUser,
   FiSearch,
-  FiChevronDown,
   FiRotateCcw,
   FiTrendingDown,
   FiSliders,
   FiX,
 } from "react-icons/fi";
 import { tofa, fmtDateTime } from "../utils/format";
+import Select from "./Select";
+import DateField from "./DateField";
+import TimeField from "./TimeField";
 
 const toInputDate = (d) => {
   const p = (n) => String(n).padStart(2, "0");
@@ -20,10 +22,29 @@ const rangeFromDays = (days) => {
   const to = new Date();
   const from = new Date();
   from.setDate(from.getDate() - days);
-  return { from: toInputDate(from), to: toInputDate(to) };
+  return {
+    from: toInputDate(from),
+    to: toInputDate(to),
+    fromTime: "",
+    toTime: "",
+  };
 };
 
-const emptyFilters = { search: "", productId: "", buyer: "", user: "", from: "", to: "" };
+const toMinutes = (hhmm) => {
+  if (!hhmm) return null;
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+};
+
+const emptyFilters = {
+  search: "",
+  productId: "",
+  buyer: "",
+  from: "",
+  to: "",
+  fromTime: "",
+  toTime: "",
+};
 
 const Outputs = ({ transactions = [] }) => {
   const [filters, setFilters] = useState(emptyFilters);
@@ -57,22 +78,28 @@ const Outputs = ({ transactions = [] }) => {
     () => [...new Set(outputs.map((t) => t.buyerName).filter(Boolean))],
     [outputs]
   );
-  const userOptions = useMemo(
-    () => [...new Set(outputs.map((t) => t.user).filter(Boolean))],
-    [outputs]
-  );
 
   const filtered = useMemo(() => {
-    const from = filters.from ? new Date(`${filters.from}T00:00:00`) : null;
-    const to = filters.to ? new Date(`${filters.to}T23:59:59.999`) : null;
+    const fromDate = filters.from ? new Date(`${filters.from}T00:00:00`) : null;
+    const toDate = filters.to ? new Date(`${filters.to}T23:59:59.999`) : null;
+    const fromMin = toMinutes(filters.fromTime);
+    const toMin = toMinutes(filters.toTime);
     const q = filters.search.trim();
+
     return outputs.filter((t) => {
       if (filters.productId && String(t.productId) !== filters.productId) return false;
       if (filters.buyer && t.buyerName !== filters.buyer) return false;
-      if (filters.user && t.user !== filters.user) return false;
+
       const created = new Date(t.createdAt);
-      if (from && created < from) return false;
-      if (to && created > to) return false;
+      if (fromDate && created < fromDate) return false;
+      if (toDate && created > toDate) return false;
+
+      if (fromMin !== null || toMin !== null) {
+        const mins = created.getHours() * 60 + created.getMinutes();
+        if (fromMin !== null && mins < fromMin) return false;
+        if (toMin !== null && mins > toMin) return false;
+      }
+
       if (
         q &&
         ![t.productName, t.variant, t.buyerName, t.user, t.note].some((v) =>
@@ -80,6 +107,7 @@ const Outputs = ({ transactions = [] }) => {
         )
       )
         return false;
+
       return true;
     });
   }, [outputs, filters]);
@@ -128,7 +156,6 @@ const Outputs = ({ transactions = [] }) => {
     return [...map.values()].sort((a, b) => b.sold - a.sold);
   }, [filtered]);
 
-  // ورودی‌های انبار (ثبت اولیه و ورود کالا) — فقط با جستجو فیلتر می‌شود
   const entries = useMemo(() => {
     const q = filters.search.trim();
     return transactions
@@ -141,21 +168,13 @@ const Outputs = ({ transactions = [] }) => {
   }, [transactions, filters.search]);
 
   const hasFilters = JSON.stringify(filters) !== JSON.stringify(emptyFilters);
-  const moreFilterCount = [filters.productId, filters.user].filter(Boolean).length;
-
-  const select = (value, onChange, placeholder, items) => (
-    <div className="outputsfilter">
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">{placeholder}</option>
-        {items.map(([val, label]) => (
-          <option key={val} value={val}>
-            {label}
-          </option>
-        ))}
-      </select>
-      <FiChevronDown />
-    </div>
-  );
+  const moreFilterCount = [
+    filters.productId,
+    filters.from,
+    filters.to,
+    filters.fromTime,
+    filters.toTime,
+  ].filter(Boolean).length;
 
   return (
     <div className="outputspage">
@@ -202,12 +221,12 @@ const Outputs = ({ transactions = [] }) => {
           </button>
         </div>
 
-        {select(
-          filters.buyer,
-          (v) => setFilter("buyer", v),
-          "همه خریداران",
-          buyerOptions.map((b) => [b, b])
-        )}
+        <Select
+          value={filters.buyer}
+          onChange={(v) => setFilter("buyer", v)}
+          placeholder="همه خریداران"
+          options={buyerOptions.map((b) => ({ value: b, label: b }))}
+        />
 
         <button
           type="button"
@@ -244,39 +263,53 @@ const Outputs = ({ transactions = [] }) => {
               <FiX />
             </button>
           </div>
+
           <div className="outputsmoregrid">
             <div className="outputsmorefield">
               <label>محصول</label>
-              {select(
-                filters.productId,
-                (v) => setFilter("productId", v),
-                "همه محصولات",
-                productOptions.map(([id, label]) => [String(id), label])
-              )}
-            </div>
-            <div className="outputsmorefield">
-              <label>کاربر ثبت‌کننده</label>
-              {select(
-                filters.user,
-                (v) => setFilter("user", v),
-                "همه کاربران",
-                userOptions.map((u) => [u, u])
-              )}
+              <Select
+                value={filters.productId}
+                onChange={(v) => setFilter("productId", v)}
+                placeholder="همه محصولات"
+                options={productOptions.map(([id, label]) => ({
+                  value: String(id),
+                  label,
+                }))}
+              />
             </div>
             <div className="outputsmorefield">
               <label>از تاریخ</label>
-              <input
-                type="date"
+              <DateField
                 value={filters.from}
-                onChange={(e) => setFilter("from", e.target.value)}
+                onChange={(v) => setFilter("from", v)}
+                placeholder="از تاریخ"
               />
             </div>
             <div className="outputsmorefield">
               <label>تا تاریخ</label>
-              <input
-                type="date"
+              <DateField
                 value={filters.to}
-                onChange={(e) => setFilter("to", e.target.value)}
+                onChange={(v) => setFilter("to", v)}
+                placeholder="تا تاریخ"
+              />
+            </div>
+          </div>
+
+          <div className="outputsmoregrid outputsmoregrid-time">
+            <div className="outputsmorefield">
+              <label>از ساعت</label>
+              <TimeField
+                value={filters.fromTime}
+                onChange={(v) => setFilter("fromTime", v)}
+                placeholder="انتخاب ساعت"
+              />
+            </div>
+            <div className="outputsmorefield">
+              <label>تا ساعت</label>
+              <TimeField
+                value={filters.toTime}
+                onChange={(v) => setFilter("toTime", v)}
+                placeholder="انتخاب ساعت"
               />
             </div>
           </div>
@@ -284,25 +317,24 @@ const Outputs = ({ transactions = [] }) => {
       )}
 
       {view !== "entries" && (
-      <div className="outputssummary">
-        <div className="outputssummaryitem">
-          <span>تعداد خروجی</span>
-          <strong>{tofa(summary.count)}</strong>
+        <div className="outputssummary">
+          <div className="outputssummaryitem">
+            <span>تعداد خروجی</span>
+            <strong>{tofa(summary.count)}</strong>
+          </div>
+          <div className="outputssummaryitem">
+            <span>مجموع تعداد خروج</span>
+            <strong className="outputssummarydanger">{tofa(summary.qty)}</strong>
+          </div>
+          <div className="outputssummaryitem">
+            <span>تعداد خریداران</span>
+            <strong>{tofa(summary.buyers)}</strong>
+          </div>
+          <div className="outputssummaryitem">
+            <span>تعداد محصولات</span>
+            <strong className="outputssummarysuccess">{tofa(summary.products)}</strong>
+          </div>
         </div>
-        <div className="outputssummaryitem">
-          <span>مجموع تعداد خروج</span>
-          <strong className="outputssummarydanger">{tofa(summary.qty)}</strong>
-        </div>
-        <div className="outputssummaryitem">
-          <span>تعداد خریداران</span>
-          <strong>{tofa(summary.buyers)}</strong>
-        </div>
-        <div className="outputssummaryitem">
-          <span>تعداد محصولات</span>
-          <strong className="outputssummarysuccess">{tofa(summary.products)}</strong>
-        </div>
-      </div>
-
       )}
 
       <div className="outputstabs">
@@ -332,14 +364,13 @@ const Outputs = ({ transactions = [] }) => {
                 <th>محصول</th>
                 <th>تعداد خروج</th>
                 <th>خریدار</th>
-                <th>کاربر</th>
                 <th>توضیحات</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="outputsempty">
+                  <td colSpan="5" className="outputsempty">
                     هیچ خروجی‌ای یافت نشد
                   </td>
                 </tr>
@@ -365,7 +396,6 @@ const Outputs = ({ transactions = [] }) => {
                         {t.buyerName || "-"}
                       </span>
                     </td>
-                    <td data-label="ثبت‌کننده">{t.user}</td>
                     <td data-label="توضیحات">{t.note || "-"}</td>
                   </tr>
                 ))
@@ -431,15 +461,14 @@ const Outputs = ({ transactions = [] }) => {
                 <th>محصول</th>
                 <th>تعداد ورودی</th>
                 <th>نوع ثبت</th>
-                <th>ثبت‌کننده</th>
                 <th>توضیحات</th>
               </tr>
             </thead>
             <tbody>
               {entries.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="outputsempty">
-                    ورودی‌ای ثبت نشده است. از صفحه‌ی «موجودی انبار» با دکمه‌ی «ورود کالا» ثبت کنید.
+                  <td colSpan="5" className="outputsempty">
+                    ورودی‌ای ثبت نشده است. از صفحه‌ی «مدیریت محصولات» و بخش «تغییر دستی موجودی» ثبت کنید.
                   </td>
                 </tr>
               ) : (
@@ -460,7 +489,6 @@ const Outputs = ({ transactions = [] }) => {
                     <td data-label="نوع ثبت">
                       {t.kind === "initial" ? "ثبت اولیه" : "ورود کالا"}
                     </td>
-                    <td data-label="ثبت‌کننده">{t.user}</td>
                     <td data-label="توضیحات">{t.note || "-"}</td>
                   </tr>
                 ))

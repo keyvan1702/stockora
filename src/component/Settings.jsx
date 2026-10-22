@@ -11,6 +11,8 @@ import {
   FiInfo,
 } from "react-icons/fi";
 import { tofa } from "../utils/format";
+import { useToast } from "./ToastContext";
+import Select from "./Select";
 
 const KIND_OPTIONS = [
   { value: "text", label: "متن" },
@@ -37,8 +39,8 @@ const typeToEditor = (t) => ({
 });
 
 const Settings = ({ productTypes = [], products = [], actions }) => {
+  const toast = useToast();
   const [editor, setEditor] = useState(null);
-  const [typeSaved, setTypeSaved] = useState(false);
 
   const startNew = () => setEditor({ name: "", unit: "عدد", fields: [newField()] });
 
@@ -53,25 +55,24 @@ const Settings = ({ productTypes = [], products = [], actions }) => {
     patchEditor({ fields: editor.fields.filter((_, i) => i !== index) });
 
   const saveType = async () => {
-    // اعتبارسنجی
     if (!editor.name.trim()) {
-      alert("نام نوع محصول الزامی است!");
+      toast.error("نام نوع محصول الزامی است!");
       return;
     }
     if (!editor.unit.trim()) {
-      alert("واحد شمارش الزامی است!");
+      toast.error("واحد شمارش الزامی است!");
       return;
     }
     const invalidField = editor.fields.find((f) => !f.label.trim());
     if (invalidField) {
-      alert("عنوان همه‌ی متغیرها را پر کنید (یا متغیر خالی را حذف کنید).");
+      toast.error("عنوان همه‌ی متغیرها را پر کنید (یا متغیر خالی را حذف کنید).");
       return;
     }
     const invalidSelect = editor.fields.find(
       (f) => f.kind === "select" && !f.optionsText.trim()
     );
     if (invalidSelect) {
-      alert(`متغیر «${invalidSelect.label}» از نوع انتخابی است و باید گزینه داشته باشد.`);
+      toast.error(`متغیر «${invalidSelect.label}» از نوع انتخابی است و باید گزینه داشته باشد.`);
       return;
     }
 
@@ -95,24 +96,22 @@ const Settings = ({ productTypes = [], products = [], actions }) => {
     try {
       await actions.saveProductType(payload);
       setEditor(null);
-      setTypeSaved(true);
-      setTimeout(() => setTypeSaved(false), 3000);
-    } catch (e) {
-      alert(e.message || "خطایی رخ داد");
+    } catch {
+      /* toast از Maindashboard */
     }
   };
 
   const deleteType = async (t) => {
     const count = products.filter((p) => p.typeId === t.id).length;
     if (count > 0) {
-      alert(`این نوع ${tofa(count)} محصول دارد و قابل حذف نیست.`);
+      toast.error(`این نوع ${tofa(count)} محصول دارد و قابل حذف نیست.`);
       return;
     }
     if (!window.confirm(`نوع «${t.name}» حذف شود؟`)) return;
     try {
       await actions.deleteProductType(t.id);
-    } catch (e) {
-      alert(e.message || "خطایی رخ داد");
+    } catch {
+      /* toast از Maindashboard */
     }
   };
 
@@ -138,11 +137,6 @@ const Settings = ({ productTypes = [], products = [], actions }) => {
         </span>
       </div>
 
-      {typeSaved && (
-        <div className="addproductsuccess">✓ نوع محصول با موفقیت ذخیره شد!</div>
-      )}
-
-      {/* --------- حالت نمایش لیست --------- */}
       {!editor && (
         <div className="typelist">
           {productTypes.length === 0 ? (
@@ -211,7 +205,6 @@ const Settings = ({ productTypes = [], products = [], actions }) => {
         </div>
       )}
 
-      {/* --------- حالت ویرایش/افزودن --------- */}
       {editor && (
         <div className="typeeditor">
           <div className="typeeditorheader">
@@ -262,16 +255,11 @@ const Settings = ({ productTypes = [], products = [], actions }) => {
                 value={f.label}
                 onChange={(e) => patchField(i, { label: e.target.value })}
               />
-              <select
+              <Select
                 value={f.kind}
-                onChange={(e) => patchField(i, { kind: e.target.value })}
-              >
-                {KIND_OPTIONS.map((k) => (
-                  <option key={k.value} value={k.value}>
-                    {k.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => patchField(i, { kind: v })}
+                options={KIND_OPTIONS.map((k) => ({ value: k.value, label: k.label }))}
+              />
               {f.kind === "select" && (
                 <input
                   type="text"

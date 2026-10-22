@@ -88,7 +88,7 @@ const DashboardHome = ({
     {
       to: "/add-product",
       icon: <FiPlus />,
-      label: "افزودن محصول",
+      label: "مدیریت محصولات",
       desc: "ثبت محصول جدید",
       color: "blue",
     },
@@ -119,7 +119,7 @@ const DashboardHome = ({
           </NavLink>
           <NavLink to="/add-product" className="dashboardherobtn">
             <FiPlus />
-            افزودن محصول
+            مدیریت محصولات
           </NavLink>
         </div>
       </div>

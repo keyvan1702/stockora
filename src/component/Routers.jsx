@@ -1,4 +1,3 @@
-
 import { createBrowserRouter, useOutletContext } from "react-router-dom";
 
 import Maindashboard from "../pages/Maindashboard";
@@ -8,10 +7,10 @@ import Outputs from "../component/Outputs";
 import Customers from "../component/Customers";
 import AddProduct from "../component/AddProduct";
 import Settings from "../component/Settings";
+import StockLog from "../component/StockLog";
 
 function DashboardRoute() {
   const { products, productTypes, customers, transactions } = useOutletContext();
-
   return (
     <DashboardHome
       products={products}
@@ -24,20 +23,17 @@ function DashboardRoute() {
 
 function InventoryRoute() {
   const { products, productTypes, actions } = useOutletContext();
-
   return <Store products={products} productTypes={productTypes} actions={actions} />;
 }
 
 function OutputsRoute() {
   const { transactions } = useOutletContext();
-
   return <Outputs transactions={transactions} />;
 }
 
 function CustomersRoute() {
   const { customers, actions, products, productTypes, transactions } =
     useOutletContext();
-
   return (
     <Customers
       customers={customers}
@@ -51,7 +47,6 @@ function CustomersRoute() {
 
 function AddProductRoute() {
   const { products, productTypes, actions } = useOutletContext();
-
   return (
     <AddProduct
       products={products}
@@ -63,7 +58,6 @@ function AddProductRoute() {
 
 function SettingsRoute() {
   const { productTypes, products, actions } = useOutletContext();
-
   return (
     <Settings
       productTypes={productTypes}
@@ -71,6 +65,11 @@ function SettingsRoute() {
       actions={actions}
     />
   );
+}
+
+function StockLogRoute() {
+  const { transactions } = useOutletContext();
+  return <StockLog transactions={transactions} />;
 }
 
 const Routers = createBrowserRouter(
@@ -85,6 +84,7 @@ const Routers = createBrowserRouter(
         { path: "customers", element: <CustomersRoute /> },
         { path: "add-product", element: <AddProductRoute /> },
         { path: "settings", element: <SettingsRoute /> },
+        { path: "stock-log", element: <StockLogRoute /> },
       ],
     },
   ],

@@ -12,11 +12,11 @@ import {
   FiPackage,
   FiChevronDown,
   FiChevronUp,
-  FiX,
 } from "react-icons/fi";
 import { tofa, fmtDateTime, findType } from "../utils/format";
+import { useToast } from "./ToastContext";
+import Select from "./Select";
 
-// نرمال‌سازی نام برای تطبیق مطمئن
 const normalizeName = (name) => (name || "").trim().replace(/\s+/g, " ");
 
 const Customers = ({
@@ -26,6 +26,8 @@ const Customers = ({
   productTypes = [],
   transactions = [],
 }) => {
+  const toast = useToast();
+
   const [search, setSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -35,7 +37,6 @@ const Customers = ({
   const [purchaseForm, setPurchaseForm] = useState({ productId: "", qty: "", note: "" });
   const [busy, setBusy] = useState(false);
 
-  // ⚠️ اصلاح: گروه‌بندی با نام نرمال‌شده
   const purchasesByCustomer = useMemo(() => {
     const map = new Map();
     transactions
@@ -73,7 +74,7 @@ const Customers = ({
 
   const saveCustomer = async () => {
     if (!newCustomer.name.trim() || !newCustomer.phone.trim()) {
-      alert("نام و شماره تماس الزامی است!");
+      toast.error("نام و شماره تماس الزامی است!");
       return;
     }
     try {
@@ -82,8 +83,8 @@ const Customers = ({
       setNewCustomer({ name: "", phone: "", address: "" });
       setEditingId(null);
       setShowAddModal(false);
-    } catch (e) {
-      alert(e.message || "خطایی رخ داد");
+    } catch {
+      /* toast از Maindashboard */
     }
   };
 
@@ -91,8 +92,8 @@ const Customers = ({
     if (!window.confirm("آیا مطمئن‌اید؟")) return;
     try {
       await actions.deleteCustomer(id);
-    } catch (e) {
-      alert(e.message || "خطایی رخ داد");
+    } catch {
+      /* toast از Maindashboard */
     }
   };
 
@@ -103,18 +104,18 @@ const Customers = ({
 
   const submitPurchase = async () => {
     if (!purchaseForm.productId || !purchaseForm.qty) {
-      alert("لطفاً محصول و تعداد را وارد کنید!");
+      toast.error("لطفاً محصول و تعداد را وارد کنید!");
       return;
     }
     const product = products.find((p) => p.id === Number(purchaseForm.productId));
     if (!product) return;
     const qty = Number(purchaseForm.qty);
     if (qty <= 0) {
-      alert("تعداد باید بزرگ‌تر از صفر باشد!");
+      toast.error("تعداد باید بزرگ‌تر از صفر باشد!");
       return;
     }
     if (qty > product.count) {
-      alert(`موجودی کافی نیست! موجودی فعلی: ${tofa(product.count)}`);
+      toast.error(`موجودی کافی نیست! موجودی فعلی: ${tofa(product.count)}`);
       return;
     }
     setBusy(true);
@@ -124,16 +125,14 @@ const Customers = ({
         delta: -qty,
         kind: "sale",
         reason: "فروش",
-        // ⚠️ نام نرمال‌شده ذخیره شود
         buyerName: normalizeName(purchaseModal.customerName),
         note: purchaseForm.note,
       });
       setPurchaseModal(null);
       setPurchaseForm({ productId: "", qty: "", note: "" });
-      // بلافاصله ردیف مشتری را باز می‌کنیم تا خرید جدید دیده شود
       setExpanded(purchaseModal.customerId);
-    } catch (e) {
-      alert(e.message || "خطایی رخ داد");
+    } catch {
+      /* toast از Maindashboard */
     } finally {
       setBusy(false);
     }
@@ -164,7 +163,6 @@ const Customers = ({
         </button>
       </div>
 
-      {/* مودال افزودن/ویرایش مشتری */}
       {showAddModal && (
         <div className="storemodal storemodaloverlay">
           <div className="storemodalcontent">
@@ -215,7 +213,6 @@ const Customers = ({
         </div>
       )}
 
-      {/* مودال ثبت خرید */}
       {purchaseModal && (
         <div className="storemodal storemodaloverlay">
           <div className="storemodalcontent">
@@ -228,20 +225,19 @@ const Customers = ({
             <div className="storemodalinputs">
               <div className="storemodalinputgroup">
                 <label>محصول *</label>
-                <select
+                <Select
                   value={purchaseForm.productId}
-                  onChange={(e) => setPurchaseForm({ ...purchaseForm, productId: e.target.value })}
-                >
-                  <option value="">انتخاب محصول...</option>
-                  {products.map((p) => {
+                  onChange={(v) => setPurchaseForm({ ...purchaseForm, productId: v })}
+                  placeholder="انتخاب محصول..."
+                  options={products.map((p) => {
                     const t = productTypeOf(p);
-                    return (
-                      <option key={p.id} value={p.id} disabled={p.count <= 0}>
-                        {p.name} — {tofa(p.count)} {t?.unit || ""} موجودی
-                      </option>
-                    );
+                    return {
+                      value: p.id,
+                      label: `${p.name} — ${tofa(p.count)} ${t?.unit || ""} موجودی`,
+                      disabled: p.count <= 0,
+                    };
                   })}
-                </select>
+                />
               </div>
               <div className="storemodalinputgroup">
                 <label>تعداد *</label>
@@ -274,7 +270,6 @@ const Customers = ({
         </div>
       )}
 
-      {/* جدول مشتریان */}
       <div className="customertable">
         <table className="responsivetable">
           <thead>

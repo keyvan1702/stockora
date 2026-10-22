@@ -7,17 +7,19 @@ import {
   FiPackage,
   FiUsers,
   FiCalendar,
-  FiChevronDown,
   FiSun,
   FiMoon,
 } from "react-icons/fi";
 import api from "../services/api";
 import { tofa } from "../utils/format";
 import { useTheme } from "../component/ThemeContext";
+import { useToast } from "../component/ToastContext";
+
+const CURRENT_USER = "مدیر";
 
 const Maindashboard = () => {
-  const currentUser = "علی کیوانلو";
   const { theme, toggleTheme } = useTheme();
+  const toast = useToast();
 
   const [transactions, setTransactions] = useState([]);
   const [products, setProducts] = useState([]);
@@ -69,30 +71,55 @@ const Maindashboard = () => {
     }
   };
 
+  const wrap = (fn, okMessage) => async (...args) => {
+    try {
+      const res = await fn(...args);
+      if (okMessage) toast.success(okMessage);
+      return res;
+    } catch (e) {
+      toast.error(e?.message || "خطایی رخ داد");
+      throw e;
+    }
+  };
+
   const actions = {
-    async addProduct(data) {
-      const { product, transaction } = await api.createProduct({ ...data, user: currentUser });
+    addProduct: wrap(async (data) => {
+      const { product, transaction } = await api.createProduct({
+        ...data,
+        user: CURRENT_USER,
+      });
       setProducts((prev) => [...prev, product]);
       if (transaction) setTransactions((prev) => [transaction, ...prev]);
       return product;
-    },
-    async adjustStock(payload) {
+    }, "محصول با موفقیت اضافه شد"),
+
+    adjustStock: wrap(async (payload) => {
       const { product, transaction, customer } = await api.adjustStock({
         ...payload,
-        user: currentUser,
+        user: CURRENT_USER,
       });
       setProducts((prev) => prev.map((p) => (p.id === product.id ? product : p)));
       if (transaction) setTransactions((prev) => [transaction, ...prev]);
       upsertCustomer(customer);
       await refreshTransactions();
+
+      const label =
+        payload?.kind === "sale"
+          ? "فروش با موفقیت ثبت شد"
+          : payload?.kind === "restock"
+          ? "ورود کالا با موفقیت ثبت شد"
+          : "موجودی با موفقیت اصلاح شد";
+      toast.success(label);
       return product;
-    },
-    async saveSettings(next) {
+    }, null),
+
+    saveSettings: wrap(async (next) => {
       const saved = await api.saveSettings(next);
       setSettings(saved);
       return saved;
-    },
-    async saveProductType(type) {
+    }, "تنظیمات ذخیره شد"),
+
+    saveProductType: wrap(async (type) => {
       const saved = await api.saveProductType(type);
       setProductTypes((prev) =>
         prev.some((t) => t.id === saved.id)
@@ -100,25 +127,29 @@ const Maindashboard = () => {
           : [...prev, saved]
       );
       return saved;
-    },
-    async deleteProductType(id) {
+    }, "نوع محصول ذخیره شد"),
+
+    deleteProductType: wrap(async (id) => {
       await api.deleteProductType(id);
       setProductTypes((prev) => prev.filter((t) => t.id !== id));
-    },
-    async addCustomer(data) {
+    }, "نوع محصول حذف شد"),
+
+    addCustomer: wrap(async (data) => {
       const created = await api.addCustomer(data);
       setCustomers((prev) => [...prev, created]);
       return created;
-    },
-    async updateCustomer(data) {
+    }, "مشتری با موفقیت اضافه شد"),
+
+    updateCustomer: wrap(async (data) => {
       const updated = await api.updateCustomer(data);
       upsertCustomer(updated);
       return updated;
-    },
-    async deleteCustomer(id) {
+    }, "اطلاعات مشتری ویرایش شد"),
+
+    deleteCustomer: wrap(async (id) => {
       await api.deleteCustomer(id);
       setCustomers((prev) => prev.filter((c) => c.id !== id));
-    },
+    }, "مشتری حذف شد"),
   };
 
   const stats = useMemo(() => {
@@ -142,7 +173,6 @@ const Maindashboard = () => {
     settings,
     customers,
     transactions,
-    currentUser,
     actions,
   };
 
@@ -158,7 +188,7 @@ const Maindashboard = () => {
             <div className="topheaderwelcomeinline">
               <span className="topheaderwelcomeemoji">👋</span>
               <div>
-                <div className="topheadername">سلام {currentUser.split(" ")[0]}!</div>
+                <div className="topheadername">سلام {CURRENT_USER}!</div>
                 <div className="topheaderrole">
                   امروز {tofa(stats.outToday)} خروجی ثبت شده است
                 </div>
@@ -188,12 +218,9 @@ const Maindashboard = () => {
                   <FiUser />
                 </div>
                 <div className="topheaderusertext">
-                  <div className="topheadername">{currentUser}</div>
+                  <div className="topheadername">{CURRENT_USER}</div>
                   <div className="topheaderrole">مدیر</div>
                 </div>
-                <span className="topheaderchevron">
-                  <FiChevronDown />
-                </span>
               </div>
             </div>
           </div>

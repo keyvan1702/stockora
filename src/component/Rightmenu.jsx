@@ -6,18 +6,20 @@ import {
   FiHome,
   FiArchive,
   FiUsers,
-  FiPlus,
+  FiPackage,
   FiLogOut,
   FiShoppingBag,
   FiSettings,
+  FiActivity,
 } from "react-icons/fi";
 
 const menuitems = [
   { key: "dashboard", label: "داشبورد", short: "داشبورد", icon: <FiHome />, path: "/", end: true },
   { key: "inventory", label: "موجودی انبار", short: "انبار", icon: <FiArchive />, path: "/inventory" },
   { key: "outputs", label: "خروجی‌های انبار", short: "خروجی‌ها", icon: <FiShoppingBag />, path: "/outputs" },
+  { key: "stock-log", label: "لاگ انبار", short: "لاگ", icon: <FiActivity />, path: "/stock-log" },
   { key: "customers", label: "مشتریان", short: "مشتریان", icon: <FiUsers />, path: "/customers" },
-  { key: "addproduct", label: "افزودن محصول", short: "افزودن", icon: <FiPlus />, path: "/add-product" },
+  { key: "addproduct", label: "مدیریت محصولات", short: "محصولات", icon: <FiPackage />, path: "/add-product" },
   { key: "settings", label: "تنظیمات", short: "تنظیمات", icon: <FiSettings />, path: "/settings" },
 ];
 
