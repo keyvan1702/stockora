@@ -37,6 +37,9 @@ const Customers = ({
   const [purchaseForm, setPurchaseForm] = useState({ productId: "", qty: "", note: "" });
   const [busy, setBusy] = useState(false);
 
+  // مودال جزئیات خرید (با کلیک روی عدد «کل خرید»)
+  const [purchasesModal, setPurchasesModal] = useState(null);
+
   const purchasesByCustomer = useMemo(() => {
     const map = new Map();
     transactions
@@ -139,6 +142,25 @@ const Customers = ({
   };
 
   const productTypeOf = (product) => findType(productTypes, product.typeId);
+
+  // باز کردن مودال جزئیات خرید
+  const openPurchasesModal = (customer) => {
+    const items = purchasesByCustomer.get(normalizeName(customer.name)) || [];
+    setPurchasesModal({
+      customerName: customer.name,
+      phone: customer.phone || "",
+      items,
+    });
+  };
+
+  // جمع‌بندی مودال
+  const modalSummary = useMemo(() => {
+    if (!purchasesModal) return { count: 0, totalQty: 0, products: 0 };
+    const items = purchasesModal.items;
+    const totalQty = items.reduce((s, t) => s + Math.abs(t.change), 0);
+    const products = new Set(items.map((t) => t.productId)).size;
+    return { count: items.length, totalQty, products };
+  }, [purchasesModal]);
 
   return (
     <div className="customerpage">
@@ -270,6 +292,83 @@ const Customers = ({
         </div>
       )}
 
+      {/* ---------- مودال جزئیات خرید مشتری ---------- */}
+      {purchasesModal && (
+        <div className="storemodal storemodaloverlay">
+          <div className="storemodalcontent purchasesmodal">
+            <div className="storemodalheader">
+              <h3>خریدهای {purchasesModal.customerName}</h3>
+              <button
+                className="storemodalbtn-close"
+                onClick={() => setPurchasesModal(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="storemodalinputs purchasesmodal-body">
+              {purchasesModal.phone && (
+                <div className="purchasesmodal-meta">
+                  <span>
+                    <FiPhone /> {purchasesModal.phone}
+                  </span>
+                </div>
+              )}
+
+              <div className="purchasesmodal-summary">
+                <div className="purchasesmodal-stat">
+                  <span>تعداد خریدها</span>
+                  <strong>{tofa(modalSummary.count)}</strong>
+                </div>
+                <div className="purchasesmodal-stat">
+                  <span>مجموع تعداد کالا</span>
+                  <strong>{tofa(modalSummary.totalQty)}</strong>
+                </div>
+                <div className="purchasesmodal-stat">
+                  <span>تنوع محصولات</span>
+                  <strong>{tofa(modalSummary.products)}</strong>
+                </div>
+              </div>
+
+              {purchasesModal.items.length === 0 ? (
+                <p className="purchasesmodal-empty">
+                  هنوز خریدی برای این مشتری ثبت نشده است.
+                </p>
+              ) : (
+                <div className="purchasesmodal-list">
+                  {purchasesModal.items.map((t) => (
+                    <div className="purchasesmodal-item" key={t.id}>
+                      <div className="purchasesmodal-item-main">
+                        <strong>{t.productName}</strong>
+                        {t.variant && <small>{t.variant}</small>}
+                      </div>
+                      <span className="purchasesmodal-item-qty">
+                        {tofa(Math.abs(t.change))} {t.unit}
+                      </span>
+                      <span className="purchasesmodal-item-date">
+                        {fmtDateTime(t.createdAt)}
+                      </span>
+                      {t.note && (
+                        <span className="purchasesmodal-item-note">{t.note}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="storemodalfooter">
+              <button
+                className="storemodalcancel"
+                onClick={() => setPurchasesModal(null)}
+              >
+                بستن
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="customertable">
         <table className="responsivetable">
           <thead>
@@ -322,10 +421,15 @@ const Customers = ({
                         </span>
                       </td>
                       <td data-label="کل خرید">
-                        <span className="customerpurchase">
+                        <button
+                          type="button"
+                          className="customerpurchase customerpurchase-btn"
+                          onClick={() => openPurchasesModal(customer)}
+                          title="مشاهده جزئیات خریدها"
+                        >
                           <FiTrendingUp />
                           {tofa(customer.totalPurchase)}
-                        </span>
+                        </button>
                       </td>
                       <td className="mobileactions">
                         <div className="customeractions">
