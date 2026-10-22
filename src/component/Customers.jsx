@@ -276,7 +276,7 @@ const Customers = ({
 
       {/* جدول مشتریان */}
       <div className="customertable">
-        <table>
+        <table className="responsivetable">
           <thead>
             <tr>
               <th style={{ width: 40 }}></th>
@@ -302,7 +302,7 @@ const Customers = ({
                 return (
                   <React.Fragment key={customer.id}>
                     <tr>
-                      <td>
+                      <td className="mobileexpand">
                         <button
                           className="customerbtn-expand"
                           onClick={() => setExpanded(isOpen ? null : customer.id)}
@@ -311,26 +311,28 @@ const Customers = ({
                           {isOpen ? <FiChevronUp /> : <FiChevronDown />}
                         </button>
                       </td>
-                      <td className="customername">{customer.name}</td>
-                      <td>
+                      <td className="customername mobileprimary" data-label="نام مشتری">
+                        {customer.name}
+                      </td>
+                      <td data-label="شماره تماس">
                         <span className="customerinfo">
                           <FiPhone />
                           {customer.phone}
                         </span>
                       </td>
-                      <td>
+                      <td data-label="آدرس">
                         <span className="customerinfo">
                           <FiMapPin />
                           {customer.address}
                         </span>
                       </td>
-                      <td>
+                      <td data-label="کل خرید">
                         <span className="customerpurchase">
                           <FiTrendingUp />
                           {tofa(customer.totalPurchase)}
                         </span>
                       </td>
-                      <td>
+                      <td className="mobileactions">
                         <div className="customeractions">
                           <button
                             className="customerbtn-buy"
@@ -338,6 +340,7 @@ const Customers = ({
                             title="ثبت خرید"
                           >
                             <FiShoppingBag />
+                            <span className="mobilebtnlabel">ثبت خرید</span>
                           </button>
                           <button
                             className="customerbtn-edit"
@@ -345,6 +348,7 @@ const Customers = ({
                             title="ویرایش"
                           >
                             <FiEdit />
+                            <span className="mobilebtnlabel">ویرایش</span>
                           </button>
                           <button
                             className="customerbtn-delete"
@@ -352,6 +356,7 @@ const Customers = ({
                             title="حذف"
                           >
                             <FiTrash2 />
+                            <span className="mobilebtnlabel">حذف</span>
                           </button>
                         </div>
                       </td>

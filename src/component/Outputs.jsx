@@ -3,7 +3,6 @@ import {
   FiShoppingBag,
   FiUser,
   FiSearch,
-  FiDownload,
   FiChevronDown,
   FiRotateCcw,
   FiTrendingDown,
@@ -22,12 +21,6 @@ const rangeFromDays = (days) => {
   const from = new Date();
   from.setDate(from.getDate() - days);
   return { from: toInputDate(from), to: toInputDate(to) };
-};
-
-const csvCell = (value) => {
-  let s = String(value ?? "");
-  if (/^[=+\-@]/.test(s)) s = `'${s}`;
-  return `"${s.replace(/"/g, '""')}"`;
 };
 
 const emptyFilters = { search: "", productId: "", buyer: "", user: "", from: "", to: "" };
@@ -135,42 +128,20 @@ const Outputs = ({ transactions = [] }) => {
     return [...map.values()].sort((a, b) => b.sold - a.sold);
   }, [filtered]);
 
+  // ورودی‌های انبار (ثبت اولیه و ورود کالا) — فقط با جستجو فیلتر می‌شود
+  const entries = useMemo(() => {
+    const q = filters.search.trim();
+    return transactions
+      .filter((t) => t.kind === "restock" || t.kind === "initial")
+      .filter(
+        (t) =>
+          !q ||
+          [t.productName, t.variant, t.user, t.note].some((v) => (v || "").includes(q))
+      );
+  }, [transactions, filters.search]);
+
   const hasFilters = JSON.stringify(filters) !== JSON.stringify(emptyFilters);
   const moreFilterCount = [filters.productId, filters.user].filter(Boolean).length;
-
-  const downloadReport = () => {
-    const head = [
-      "تاریخ",
-      "محصول",
-      "مشخصات",
-      "تعداد خروج",
-      "واحد",
-      "خریدار",
-      "کاربر ثبت‌کننده",
-      "توضیحات",
-    ];
-    const lines = filtered.map((t) =>
-      [
-        fmtDateTime(t.createdAt),
-        t.productName,
-        t.variant,
-        -t.change,
-        t.unit,
-        t.buyerName || "-",
-        t.user,
-        t.note,
-      ]
-        .map(csvCell)
-        .join(",")
-    );
-    const csv = "\uFEFF" + [head.map(csvCell).join(","), ...lines].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `خروجی‌های-انبار-${Date.now()}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-  };
 
   const select = (value, onChange, placeholder, items) => (
     <div className="outputsfilter">
@@ -194,10 +165,6 @@ const Outputs = ({ transactions = [] }) => {
           <h2>خروجی‌های انبار</h2>
           <span className="outputstitlecount">{tofa(filtered.length)}</span>
         </div>
-        <button className="outputsdownload" onClick={downloadReport}>
-          <FiDownload />
-          دانلود گزارش
-        </button>
       </div>
 
       <div className="outputstoolbar">
@@ -316,6 +283,7 @@ const Outputs = ({ transactions = [] }) => {
         </div>
       )}
 
+      {view !== "entries" && (
       <div className="outputssummary">
         <div className="outputssummaryitem">
           <span>تعداد خروجی</span>
@@ -335,11 +303,14 @@ const Outputs = ({ transactions = [] }) => {
         </div>
       </div>
 
+      )}
+
       <div className="outputstabs">
         {[
           ["history", "تاریخچه"],
           ["customers", "به تفکیک خریدار"],
           ["products", "به تفکیک محصول"],
+          ["entries", "ورودی‌های انبار"],
         ].map(([key, label]) => (
           <button
             type="button"
@@ -354,7 +325,7 @@ const Outputs = ({ transactions = [] }) => {
 
       <div className="outputstablewrap">
         {view === "history" && (
-          <table className="outputstable">
+          <table className="outputstable responsivetable">
             <thead>
               <tr>
                 <th>تاریخ و ساعت</th>
@@ -375,27 +346,27 @@ const Outputs = ({ transactions = [] }) => {
               ) : (
                 filtered.map((t) => (
                   <tr key={t.id}>
-                    <td>{fmtDateTime(t.createdAt)}</td>
-                    <td>
+                    <td data-label="تاریخ">{fmtDateTime(t.createdAt)}</td>
+                    <td className="mobileprimary" data-label="محصول">
                       <span className="outputsproduct">
                         {t.productName}
                         {t.variant && <small>{t.variant}</small>}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="تعداد خروج">
                       <span className="outputsqty">
                         <FiTrendingDown />
                         {tofa(Math.abs(t.change))} {t.unit}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="خریدار">
                       <span className="outputsuser">
                         <FiUser />
                         {t.buyerName || "-"}
                       </span>
                     </td>
-                    <td>{t.user}</td>
-                    <td>{t.note || "-"}</td>
+                    <td data-label="ثبت‌کننده">{t.user}</td>
+                    <td data-label="توضیحات">{t.note || "-"}</td>
                   </tr>
                 ))
               )}
@@ -404,7 +375,7 @@ const Outputs = ({ transactions = [] }) => {
         )}
 
         {view === "customers" && (
-          <table className="outputstable">
+          <table className="outputstable responsivetable">
             <thead>
               <tr>
                 <th>خریدار</th>
@@ -424,16 +395,16 @@ const Outputs = ({ transactions = [] }) => {
               ) : (
                 byBuyer.map((b) => (
                   <tr key={b.name}>
-                    <td>
+                    <td className="mobileprimary" data-label="خریدار">
                       <span className="outputsuser">
                         <FiUser />
                         {b.name}
                       </span>
                     </td>
-                    <td>{tofa(b.count)}</td>
-                    <td>{tofa(b.qty)}</td>
-                    <td>{fmtDateTime(b.last)}</td>
-                    <td>
+                    <td data-label="تعداد خروجی">{tofa(b.count)}</td>
+                    <td data-label="مجموع تعداد">{tofa(b.qty)}</td>
+                    <td data-label="آخرین خروجی">{fmtDateTime(b.last)}</td>
+                    <td data-label="محصولات">
                       <div className="outputschips">
                         {b.items.slice(0, 3).map((it) => (
                           <span className="typechip" key={it.id}>
@@ -452,8 +423,54 @@ const Outputs = ({ transactions = [] }) => {
           </table>
         )}
 
+        {view === "entries" && (
+          <table className="outputstable responsivetable">
+            <thead>
+              <tr>
+                <th>تاریخ و ساعت</th>
+                <th>محصول</th>
+                <th>تعداد ورودی</th>
+                <th>نوع ثبت</th>
+                <th>ثبت‌کننده</th>
+                <th>توضیحات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="outputsempty">
+                    ورودی‌ای ثبت نشده است. از صفحه‌ی «موجودی انبار» با دکمه‌ی «ورود کالا» ثبت کنید.
+                  </td>
+                </tr>
+              ) : (
+                entries.map((t) => (
+                  <tr key={t.id}>
+                    <td data-label="تاریخ">{fmtDateTime(t.createdAt)}</td>
+                    <td className="mobileprimary" data-label="محصول">
+                      <span className="outputsproduct">
+                        {t.productName}
+                        {t.variant && <small>{t.variant}</small>}
+                      </span>
+                    </td>
+                    <td data-label="تعداد ورودی">
+                      <span className="outputsqty outputsqtyin">
+                        + {tofa(t.change)} {t.unit}
+                      </span>
+                    </td>
+                    <td data-label="نوع ثبت">
+                      {t.kind === "initial" ? "ثبت اولیه" : "ورود کالا"}
+                    </td>
+                    <td data-label="ثبت‌کننده">{t.user}</td>
+                    <td data-label="توضیحات">{t.note || "-"}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        )}
+
         {view === "products" && (
-          <table className="outputstable">
+          <table className="outputstable responsivetable">
             <thead>
               <tr>
                 <th>محصول</th>
@@ -471,16 +488,16 @@ const Outputs = ({ transactions = [] }) => {
               ) : (
                 byProduct.map((p) => (
                   <tr key={p.id}>
-                    <td>
+                    <td className="mobileprimary" data-label="محصول">
                       <span className="outputsproduct">
                         {p.label}
                         {p.variant && <small>{p.variant}</small>}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="مجموع خروج">
                       {tofa(p.sold)} {p.unit}
                     </td>
-                    <td>{tofa(p.buyers.size)}</td>
+                    <td data-label="تعداد خریدار">{tofa(p.buyers.size)}</td>
                   </tr>
                 ))
               )}

@@ -13,12 +13,12 @@ import {
 } from "react-icons/fi";
 
 const menuitems = [
-  { key: "dashboard", label: "داشبورد", icon: <FiHome />, path: "/", end: true },
-  { key: "inventory", label: "موجودی انبار", icon: <FiArchive />, path: "/inventory" },
-  { key: "outputs", label: "خروجی‌های انبار", icon: <FiShoppingBag />, path: "/outputs" },
-  { key: "customers", label: "مشتریان", icon: <FiUsers />, path: "/customers" },
-  { key: "addproduct", label: "افزودن محصول", icon: <FiPlus />, path: "/add-product" },
-  { key: "settings", label: "تنظیمات", icon: <FiSettings />, path: "/settings" },
+  { key: "dashboard", label: "داشبورد", short: "داشبورد", icon: <FiHome />, path: "/", end: true },
+  { key: "inventory", label: "موجودی انبار", short: "انبار", icon: <FiArchive />, path: "/inventory" },
+  { key: "outputs", label: "خروجی‌های انبار", short: "خروجی‌ها", icon: <FiShoppingBag />, path: "/outputs" },
+  { key: "customers", label: "مشتریان", short: "مشتریان", icon: <FiUsers />, path: "/customers" },
+  { key: "addproduct", label: "افزودن محصول", short: "افزودن", icon: <FiPlus />, path: "/add-product" },
+  { key: "settings", label: "تنظیمات", short: "تنظیمات", icon: <FiSettings />, path: "/settings" },
 ];
 
 const Rightmenu = () => {
@@ -43,6 +43,7 @@ const Rightmenu = () => {
             >
               <span className="rightmenuitemicon">{item.icon}</span>
               <span className="rightmenuitemlabel">{item.label}</span>
+              <span className="rightmenuitemshort">{item.short}</span>
             </NavLink>
           </li>
         ))}

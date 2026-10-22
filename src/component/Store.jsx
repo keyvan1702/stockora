@@ -10,16 +10,21 @@ import {
   FiChevronsLeft,
   FiFilter,
   FiX,
+  FiTrendingUp,
 } from "react-icons/fi";
-import { tofa, findType, attrDisplay, variantLabel } from "../utils/format";
+import { tofa, tolatin, findType, attrDisplay, variantLabel } from "../utils/format";
 
 const PAGE_SIZE = 8;
 
-const Store = ({ products = [], productTypes = [] }) => {
+const Store = ({ products = [], productTypes = [], actions }) => {
   const [search, setSearch] = useState("");
   const [activeType, setActiveType] = useState(""); // "" = همه
   const [filters, setFilters] = useState({}); // { fieldKey: value }
   const [page, setPage] = useState(1);
+  const [restock, setRestock] = useState(null); // { productId }
+  const [restockForm, setRestockForm] = useState({ qty: "", note: "" });
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState("");
 
   const currentType = activeType ? findType(productTypes, Number(activeType)) : null;
   const typeFields = currentType ? currentType.fields : [];
@@ -60,7 +65,41 @@ const Store = ({ products = [], productTypes = [] }) => {
   const safePage = Math.min(page, totalPages);
   const pagedShown = shown.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
+  // ستون‌ها: نام + (متغیرها یا نوع/مشخصات) + موجودی + عملیات
   const colCount = 3 + (currentType ? typeFields.length : 2);
+
+  const restockProduct = restock ? products.find((p) => p.id === restock.productId) : null;
+  const restockType = restockProduct ? findType(productTypes, restockProduct.typeId) : null;
+
+  const openRestock = (product) => {
+    setRestockForm({ qty: "", note: "" });
+    setRestock({ productId: product.id });
+  };
+
+  const submitRestock = async () => {
+    const qty = Number(tolatin(restockForm.qty)) || 0;
+    if (qty <= 0) {
+      alert("تعداد ورودی باید بزرگ‌تر از صفر باشد!");
+      return;
+    }
+    setBusy(true);
+    try {
+      await actions.adjustStock({
+        productId: restockProduct.id,
+        delta: qty,
+        kind: "restock",
+        reason: "ورود کالا",
+        note: restockForm.note,
+      });
+      setRestock(null);
+      setToast(`${tofa(qty)} ${restockType?.unit || ""} به موجودی «${restockProduct.name}» اضافه شد`);
+      setTimeout(() => setToast(""), 3500);
+    } catch (e) {
+      alert(e.message || "خطایی رخ داد");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const setType = (val) => {
     setActiveType(val);
@@ -166,10 +205,9 @@ const Store = ({ products = [], productTypes = [] }) => {
       </div>
 
       <div className="storetablewrap">
-        <table className="storetable">
+        <table className="storetable responsivetable">
           <thead>
             <tr>
-              <th className="storecolimage"></th>
               <th className="storecoltype">نام محصول</th>
               {currentType ? (
                 typeFields.map((f) => <th key={f.key}>{f.label}</th>)
@@ -180,6 +218,7 @@ const Store = ({ products = [], productTypes = [] }) => {
                 </>
               )}
               <th>موجودی</th>
+              <th className="storecolactions">عملیات</th>
             </tr>
           </thead>
           <tbody>
@@ -196,27 +235,39 @@ const Store = ({ products = [], productTypes = [] }) => {
                 const itemType = findType(productTypes, item.typeId);
                 return (
                   <tr key={item.id}>
-                    <td>
-                      <div className={`storethumb storethumb${item.shade}`}></div>
+                    <td className="storecelltype mobileprimary" data-label="نام محصول">
+                      {item.name}
                     </td>
-                    <td className="storecelltype">{item.name}</td>
                     {currentType ? (
                       typeFields.map((f) => (
-                        <td key={f.key}>{attrDisplay(f, item.attrs?.[f.key])}</td>
+                        <td key={f.key} data-label={f.label}>
+                          {attrDisplay(f, item.attrs?.[f.key])}
+                        </td>
                       ))
                     ) : (
                       <>
-                        <td>
+                        <td data-label="نوع">
                           <span className="storetypebadge">{itemType?.name || "-"}</span>
                         </td>
-                        <td>{variantLabel(itemType, item) || "-"}</td>
+                        <td data-label="مشخصات">{variantLabel(itemType, item) || "-"}</td>
                       </>
                     )}
-                    <td>
+                    <td data-label="موجودی">
                       <span className="storestockcell">
                         {tofa(item.count)}
                         <small>{itemType?.unit}</small>
                       </span>
+                    </td>
+                    <td className="mobileactions">
+                      <button
+                        type="button"
+                        className="storerestockbtn"
+                        onClick={() => openRestock(item)}
+                        title="ثبت ورود کالا"
+                      >
+                        <FiTrendingUp />
+                        ورود کالا
+                      </button>
                     </td>
                   </tr>
                 );
@@ -226,13 +277,66 @@ const Store = ({ products = [], productTypes = [] }) => {
         </table>
       </div>
 
+      {toast && <div className="storetoast">✓ {toast}</div>}
+
+      {restock && restockProduct && (
+        <div className="storemodal storemodaloverlay">
+          <div className="storemodalcontent">
+            <div className="storemodalheader">
+              <h3>ثبت ورود کالا</h3>
+              <button className="storemodalbtn-close" onClick={() => setRestock(null)}>
+                ✕
+              </button>
+            </div>
+            <div className="storemodalinputs">
+              <div className="storemodalinfo">
+                <strong>{restockProduct.name}</strong>
+                <span>{variantLabel(restockType, restockProduct)}</span>
+                <span>
+                  موجودی فعلی: {tofa(restockProduct.count)} {restockType?.unit}
+                </span>
+              </div>
+              <div className="storemodalinputgroup">
+                <label>تعداد ورودی ({restockType?.unit}) *</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoFocus
+                  placeholder="مثلاً ۵۰"
+                  value={restockForm.qty}
+                  onChange={(e) => setRestockForm({ ...restockForm, qty: e.target.value })}
+                  onKeyDown={(e) => e.key === "Enter" && submitRestock()}
+                />
+              </div>
+              <div className="storemodalinputgroup">
+                <label>تأمین‌کننده / توضیحات (اختیاری)</label>
+                <input
+                  type="text"
+                  value={restockForm.note}
+                  onChange={(e) => setRestockForm({ ...restockForm, note: e.target.value })}
+                  onKeyDown={(e) => e.key === "Enter" && submitRestock()}
+                />
+              </div>
+            </div>
+            <div className="storemodalfooter">
+              <button className="storemodalcancel" onClick={() => setRestock(null)}>
+                لغو
+              </button>
+              <button className="storemodalsave" onClick={submitRestock} disabled={busy}>
+                {busy ? "در حال ثبت..." : "ثبت ورود"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="storefooter">
         <div className="storenote">
           <FiInfo />
           <span>
             {shown.length !== products.length
               ? `${tofa(shown.length)} محصول از ${tofa(products.length)} نمایش داده می‌شود`
-              : "برای ثبت فروش به بخش مشتریان مراجعه کنید"}
+              : "فروش از بخش «مشتریان» و افزایش موجودی با «ورود کالا» ثبت می‌شود"}
           </span>
         </div>
         <div className="storepages">
