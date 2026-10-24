@@ -1,5 +1,6 @@
-import { createBrowserRouter, useOutletContext } from "react-router-dom";
+import { createBrowserRouter, useOutletContext, Navigate } from "react-router-dom";
 
+import App from "../App";
 import Maindashboard from "../pages/Maindashboard";
 import DashboardHome from "../component/DashboardHome";
 import Store from "../component/Store";
@@ -8,6 +9,14 @@ import Customers from "../component/Customers";
 import AddProduct from "../component/AddProduct";
 import Settings from "../component/Settings";
 import StockLog from "../component/StockLog";
+import LoginPage from "../component/LoginPage";
+import { useAuth } from "../component/AuthContext";
+
+function RequireAuth({ children }) {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return children;
+}
 
 function DashboardRoute() {
   const { products, productTypes, customers, transactions } = useOutletContext();
@@ -22,8 +31,8 @@ function DashboardRoute() {
 }
 
 function InventoryRoute() {
-  const { products, productTypes, actions } = useOutletContext();
-  return <Store products={products} productTypes={productTypes} actions={actions} />;
+  const { products, productTypes } = useOutletContext();
+  return <Store products={products} productTypes={productTypes} />;
 }
 
 function OutputsRoute() {
@@ -74,17 +83,28 @@ function StockLogRoute() {
 
 const Routers = createBrowserRouter(
   [
+    { path: "/login", element: <LoginPage /> },
     {
       path: "/",
-      element: <Maindashboard />,
+      element: <App />,
       children: [
-        { index: true, element: <DashboardRoute /> },
-        { path: "inventory", element: <InventoryRoute /> },
-        { path: "outputs", element: <OutputsRoute /> },
-        { path: "customers", element: <CustomersRoute /> },
-        { path: "add-product", element: <AddProductRoute /> },
-        { path: "settings", element: <SettingsRoute /> },
-        { path: "stock-log", element: <StockLogRoute /> },
+        {
+          path: "",
+          element: (
+            <RequireAuth>
+              <Maindashboard />
+            </RequireAuth>
+          ),
+          children: [
+            { path: "", element: <DashboardRoute /> },
+            { path: "inventory", element: <InventoryRoute /> },
+            { path: "outputs", element: <OutputsRoute /> },
+            { path: "customers", element: <CustomersRoute /> },
+            { path: "add-product", element: <AddProductRoute /> },
+            { path: "settings", element: <SettingsRoute /> },
+            { path: "stock-log", element: <StockLogRoute /> },
+          ],
+        },
       ],
     },
   ],

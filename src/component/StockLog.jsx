@@ -207,7 +207,10 @@ const StockLog = ({ transactions = [] }) => {
           <button
             type="button"
             className="outputsreset"
-            onClick={() => setFilters(EMPTY_FILTERS)}
+            onClick={() => {
+              setFilters(EMPTY_FILTERS);
+              setShowMore(false);
+            }}
             title="پاک کردن فیلترها"
           >
             <FiRotateCcw />

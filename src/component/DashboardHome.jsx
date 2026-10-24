@@ -218,60 +218,6 @@ const DashboardHome = ({
             </ul>
           )}
         </div>
-
-        <div className="dashboardcard">
-          <div className="dashboardcardheader">
-            <h3>
-              <FiBox /> محصولات پرطرفدار
-            </h3>
-          </div>
-          {topProducts.length === 0 ? (
-            <p className="dashboardempty">داده‌ای برای نمایش نیست.</p>
-          ) : (
-            <ul className="dashboardranklist">
-              {topProducts.map((p, i) => (
-                <li key={p.id} className="dashboardrankitem">
-                  <span className={`dashboardranknum rank${i + 1}`}>
-                    {tofa(i + 1)}
-                  </span>
-                  <div className="dashboardrankinfo">
-                    <strong>{p.label}</strong>
-                    {p.variant && <small>{p.variant}</small>}
-                  </div>
-                  <span className="dashboardrankqty">
-                    {tofa(p.qty)} {p.unit}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="dashboardcard">
-          <div className="dashboardcardheader">
-            <h3>
-              <FiUsers /> خریداران برتر
-            </h3>
-          </div>
-          {topBuyers.length === 0 ? (
-            <p className="dashboardempty">داده‌ای برای نمایش نیست.</p>
-          ) : (
-            <ul className="dashboardranklist">
-              {topBuyers.map((b, i) => (
-                <li key={b.name} className="dashboardrankitem">
-                  <span className={`dashboardranknum rank${i + 1}`}>
-                    {tofa(i + 1)}
-                  </span>
-                  <div className="dashboardrankinfo">
-                    <strong>{b.name}</strong>
-                    <small>{tofa(b.count)} خرید</small>
-                  </div>
-                  <span className="dashboardrankqty">{tofa(b.qty)} واحد</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
       </div>
     </div>
   );

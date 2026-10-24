@@ -9,17 +9,27 @@ import {
   FiCalendar,
   FiSun,
   FiMoon,
+  FiLogIn,
+  FiShield,
+  FiX,
+  FiChevronsRight,
+  FiChevronsLeft,
 } from "react-icons/fi";
 import api from "../services/api";
-import { tofa } from "../utils/format";
+import { tofa, fmtDateTime } from "../utils/format";
 import { useTheme } from "../component/ThemeContext";
 import { useToast } from "../component/ToastContext";
+import { useAuth } from "../component/AuthContext";
 
 const CURRENT_USER = "مدیر";
 
 const Maindashboard = () => {
   const { theme, toggleTheme } = useTheme();
   const toast = useToast();
+  const { user } = useAuth();
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const [transactions, setTransactions] = useState([]);
   const [products, setProducts] = useState([]);
@@ -52,6 +62,13 @@ const Maindashboard = () => {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    const onEsc = (e) => e.key === "Escape" && setProfileOpen(false);
+    document.addEventListener("keydown", onEsc);
+    return () => document.removeEventListener("keydown", onEsc);
+  }, [profileOpen]);
 
   const upsertCustomer = (customer) => {
     if (!customer) return;
@@ -176,21 +193,37 @@ const Maindashboard = () => {
     actions,
   };
 
+  const displayName = user?.name || CURRENT_USER;
+  const displayRole = user?.role || "مدیر";
+  const loggedInAt = user?.loggedInAt;
+
   return (
-    <div className="maindashboard">
+    <div className={`maindashboard ${sidebarCollapsed ? "maindashboard-collapsed" : ""}`}>
       <div className="right">
-        <Rightmenu />
+        <Rightmenu collapsed={sidebarCollapsed} />
       </div>
 
       <div className="left">
         <header className="topheader">
           <div className="topheaderbar">
-            <div className="topheaderwelcomeinline">
-              <span className="topheaderwelcomeemoji">👋</span>
-              <div>
-                <div className="topheadername">سلام {CURRENT_USER}!</div>
-                <div className="topheaderrole">
-                  امروز {tofa(stats.outToday)} خروجی ثبت شده است
+            <div className="topheaderleft">
+              <button
+                type="button"
+                className={`topheadertoggle ${sidebarCollapsed ? "is-collapsed" : ""}`}
+                onClick={() => setSidebarCollapsed((s) => !s)}
+                title={sidebarCollapsed ? "باز کردن منو" : "بستن منو"}
+                aria-label={sidebarCollapsed ? "باز کردن منو" : "بستن منو"}
+              >
+                {sidebarCollapsed ? <FiChevronsLeft /> : <FiChevronsRight />}
+              </button>
+
+              <div className="topheaderwelcomeinline">
+                <span className="topheaderwelcomeemoji">👋</span>
+                <div>
+                  <div className="topheadername">سلام {displayName}!</div>
+                  <div className="topheaderrole">
+                    امروز {tofa(stats.outToday)} خروجی ثبت شده است
+                  </div>
                 </div>
               </div>
             </div>
@@ -213,15 +246,22 @@ const Maindashboard = () => {
                   }).format(new Date())}
                 </span>
               </div>
-              <div className="topheaderuser">
+              <button
+                type="button"
+                className={`topheaderuser ${profileOpen ? "is-open" : ""}`}
+                onClick={() => setProfileOpen((s) => !s)}
+                aria-haspopup="dialog"
+                aria-expanded={profileOpen}
+                title="مشاهده‌ی پروفایل"
+              >
                 <div className="topheaderavatar">
                   <FiUser />
                 </div>
                 <div className="topheaderusertext">
-                  <div className="topheadername">{CURRENT_USER}</div>
-                  <div className="topheaderrole">مدیر</div>
+                  <div className="topheadername">{displayName}</div>
+                  <div className="topheaderrole">{displayRole}</div>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
 
@@ -269,6 +309,75 @@ const Maindashboard = () => {
           )}
         </div>
       </div>
+
+      {profileOpen && (
+        <div
+          className="profileoverlay"
+          onClick={() => setProfileOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="مشخصات کاربر"
+        >
+          <div
+            className="profilecard"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="profilecard-head">
+              <div className="profilecard-avatar">
+                <FiUser />
+              </div>
+              <div className="profilecard-name">
+                <strong>{displayName}</strong>
+                <span>{displayRole}</span>
+              </div>
+              <button
+                type="button"
+                className="profilecard-close"
+                onClick={() => setProfileOpen(false)}
+                aria-label="بستن"
+              >
+                <FiX />
+              </button>
+            </div>
+
+            <ul className="profilecard-list">
+              <li>
+                <span className="profilecard-label">
+                  <FiUser /> نام
+                </span>
+                <span className="profilecard-value">{displayName}</span>
+              </li>
+              <li>
+                <span className="profilecard-label">
+                  <FiShield /> نقش
+                </span>
+                <span className="profilecard-value">{displayRole}</span>
+              </li>
+              <li>
+                <span className="profilecard-label">
+                  <FiLogIn /> زمان ورود
+                </span>
+                <span className="profilecard-value">
+                  {loggedInAt ? fmtDateTime(new Date(loggedInAt).toISOString()) : "—"}
+                </span>
+              </li>
+              <li>
+                <span className="profilecard-label">
+                  <FiCalendar /> امروز
+                </span>
+                <span className="profilecard-value">
+                  {new Intl.DateTimeFormat("fa-IR", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  }).format(new Date())}
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

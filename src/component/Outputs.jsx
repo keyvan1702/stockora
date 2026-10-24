@@ -52,11 +52,15 @@ const Outputs = ({ transactions = [] }) => {
   const [view, setView] = useState("history");
   const [activeRange, setActiveRange] = useState("");
 
-  const setFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value }));
+  const setFilter = (key, value) => {
+    setFilters((f) => ({ ...f, [key]: value }));
+    if (key === "from" || key === "to") setActiveRange("");
+  };
 
   const applyRange = (label, days) => {
     setActiveRange(label);
     setFilters((f) => ({ ...f, ...rangeFromDays(days) }));
+    setShowMore(false);
   };
 
   const outputs = useMemo(
@@ -247,6 +251,7 @@ const Outputs = ({ transactions = [] }) => {
             onClick={() => {
               setFilters(emptyFilters);
               setActiveRange("");
+              setShowMore(false);
             }}
             title="پاک کردن فیلترها"
           >

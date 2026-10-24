@@ -19,10 +19,6 @@ import Select from "./Select";
 
 const normalizeName = (name) => (name || "").trim().replace(/\s+/g, " ");
 
-/**
- * ساخت رشته‌ی آدرس از اجزای ساختاریافته.
- * فقط اجزای غیرخالی را با «، » به هم می‌چسباند.
- */
 const buildAddress = ({ city, street, alley, plaque }) => {
   const parts = [];
   if (city?.trim()) parts.push(`شهر: ${city.trim()}`);
@@ -32,10 +28,6 @@ const buildAddress = ({ city, street, alley, plaque }) => {
   return parts.join("، ");
 };
 
-/**
- * تلاش می‌کند رشته‌ی آدرس ذخیره‌شده را به اجزای ساختاریافته بشکند.
- * اگر با فرمت ساختاریافته نبود، همه را داخل «خیابان» می‌ریزد.
- */
 const parseAddress = (address) => {
   const empty = { city: "", street: "", alley: "", plaque: "" };
   if (!address || !address.trim()) return empty;
@@ -217,6 +209,16 @@ const Customers = ({
     return { count: items.length, totalQty, products };
   }, [purchasesModal]);
 
+  // برای دکمه‌ی «ثبت خرید جدید» داخل مودال خریدها
+  const openPurchaseFromModal = () => {
+    const name = purchasesModal?.customerName;
+    const current = customers.find((c) => normalizeName(c.name) === normalizeName(name));
+    setPurchasesModal(null);
+    if (current) openPurchase(current);
+  };
+
+  const purchaseFormValid = !!purchaseForm.productId && !!purchaseForm.qty;
+
   return (
     <div className="customerpage">
       <div className="customertitle">
@@ -383,7 +385,11 @@ const Customers = ({
               <button className="storemodalcancel" onClick={() => setPurchaseModal(null)}>
                 لغو
               </button>
-              <button className="storemodalsave" onClick={submitPurchase} disabled={busy}>
+              <button
+                className="storemodalsave"
+                onClick={submitPurchase}
+                disabled={busy || !purchaseFormValid}
+              >
                 {busy ? "در حال ثبت..." : "ثبت خرید"}
               </button>
             </div>
@@ -460,6 +466,16 @@ const Customers = ({
                   ))}
                 </div>
               )}
+
+              <div className="purchasesmodal-actions">
+                <button
+                  type="button"
+                  className="storemodalsave"
+                  onClick={openPurchaseFromModal}
+                >
+                  <FiShoppingBag /> ثبت خرید جدید
+                </button>
+              </div>
             </div>
 
             <div className="storemodalfooter">

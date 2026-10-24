@@ -9,6 +9,7 @@ import {
   FiLayers,
   FiX,
   FiInfo,
+  FiCheck,
 } from "react-icons/fi";
 import { tofa } from "../utils/format";
 import { useToast } from "./ToastContext";
@@ -17,7 +18,6 @@ import Select from "./Select";
 const KIND_OPTIONS = [
   { value: "text", label: "متن" },
   { value: "number", label: "عدد" },
-  { value: "select", label: "انتخابی (لیست)" },
 ];
 
 const newField = () => ({
@@ -25,7 +25,6 @@ const newField = () => ({
   label: "",
   kind: "text",
   required: false,
-  optionsText: "",
 });
 
 const typeToEditor = (t) => ({
@@ -34,7 +33,8 @@ const typeToEditor = (t) => ({
   unit: t.unit,
   fields: t.fields.map((f) => ({
     ...f,
-    optionsText: (f.options || []).join("، "),
+    // اگر متغیری از نوع select در داده‌ی قدیمی بود، به متن تبدیل می‌شود
+    kind: f.kind === "select" ? "text" : f.kind,
   })),
 });
 
@@ -59,20 +59,9 @@ const Settings = ({ productTypes = [], products = [], actions }) => {
       toast.error("نام نوع محصول الزامی است!");
       return;
     }
-    if (!editor.unit.trim()) {
-      toast.error("واحد شمارش الزامی است!");
-      return;
-    }
     const invalidField = editor.fields.find((f) => !f.label.trim());
     if (invalidField) {
       toast.error("عنوان همه‌ی متغیرها را پر کنید (یا متغیر خالی را حذف کنید).");
-      return;
-    }
-    const invalidSelect = editor.fields.find(
-      (f) => f.kind === "select" && !f.optionsText.trim()
-    );
-    if (invalidSelect) {
-      toast.error(`متغیر «${invalidSelect.label}» از نوع انتخابی است و باید گزینه داشته باشد.`);
       return;
     }
 
@@ -80,16 +69,11 @@ const Settings = ({ productTypes = [], products = [], actions }) => {
       id: editor.id,
       name: editor.name.trim(),
       unit: editor.unit.trim(),
-      fields: editor.fields.map(({ tmp, optionsText, ...f }) => ({
+      fields: editor.fields.map(({ tmp, ...f }) => ({
         ...f,
         label: f.label.trim(),
-        options:
-          f.kind === "select"
-            ? optionsText
-                .split(/[,،\n]/)
-                .map((o) => o.trim())
-                .filter(Boolean)
-            : [],
+        required: !!f.required,
+        options: [], // دیگر گزینه‌ای برای متغیرهای انتخابی وجود ندارد
       })),
     };
 
@@ -169,11 +153,6 @@ const Settings = ({ productTypes = [], products = [], actions }) => {
                           <span className="typechip" key={f.key}>
                             {f.label}
                             {f.required ? " *" : ""}
-                            {f.kind === "select" && (
-                              <em className="typechipoptions">
-                                {f.options.join(" / ")}
-                              </em>
-                            )}
                           </span>
                         ))
                       )}
@@ -221,15 +200,6 @@ const Settings = ({ productTypes = [], products = [], actions }) => {
                 onChange={(e) => patchEditor({ name: e.target.value })}
               />
             </div>
-            <div className="formgroup">
-              <label>واحد شمارش *</label>
-              <input
-                type="text"
-                placeholder="مثلاً: شاخه، عدد، متر"
-                value={editor.unit}
-                onChange={(e) => patchEditor({ unit: e.target.value })}
-              />
-            </div>
           </div>
 
           <div className="typefieldstitle">
@@ -260,23 +230,19 @@ const Settings = ({ productTypes = [], products = [], actions }) => {
                 onChange={(v) => patchField(i, { kind: v })}
                 options={KIND_OPTIONS.map((k) => ({ value: k.value, label: k.label }))}
               />
-              {f.kind === "select" && (
-                <input
-                  type="text"
-                  className="typefieldoptions"
-                  placeholder="گزینه‌ها با ویرگول (مثلاً: قرمز، آبی، سبز)"
-                  value={f.optionsText}
-                  onChange={(e) => patchField(i, { optionsText: e.target.value })}
-                />
-              )}
+
               <label className="typefieldrequired">
                 <input
                   type="checkbox"
-                  checked={f.required}
+                  checked={!!f.required}
                   onChange={(e) => patchField(i, { required: e.target.checked })}
                 />
-                الزامی
+                <span className="typefieldrequired-box">
+                  <FiCheck />
+                </span>
+                <span className="typefieldrequired-label">الزامی</span>
               </label>
+
               <button
                 type="button"
                 className="typefieldremove"
